@@ -724,7 +724,7 @@
       </div>
 
       <div class="help-box">
-        PCとiPhoneで同じGoogleアカウントを使って同期するには、Firebaseコンソールで作成した<strong>Webアプリの構成（firebaseConfig）</strong>を貼り付けてGoogleログインを有効にします。未設定でもこの端末内に保存してすぐ使えます。
+        PCとiPhoneで同じGoogleアカウントを使って同期するには、Firebaseコンソールで作成した<strong>Webアプリの構成（firebaseConfig）</strong>を使ってGoogleログインを有効にします。未設定でもこの端末内に保存してすぐ使えます。
         <br />Firestoreルール例：<code>allow read, write: if request.auth != null && request.auth.uid == userId;</code>
       </div>
 
@@ -738,7 +738,7 @@
       </div>
 
       <div class="field">
-        <label class="field-label" for="firebaseConfigInput">Firebase Config（JSON形式 または <code>const firebaseConfig = {...}</code>）</label>
+        <label class="field-label" for="firebaseConfigInput">Firebase Config（組み込み済み・必要に応じて編集）</label>
         <textarea id="firebaseConfigInput" rows="7" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}'></textarea>
       </div>
 
@@ -863,7 +863,6 @@
         .replace(/[\s ・･ー‐‑–—−〜～、。,.!！?？「」『』()（）【】［］]/g, "");
     }
 
-    // レーベンシュタイン距離（類似度計算用）
     function levenshtein(a, b) {
       const m = a.length;
       const n = b.length;
@@ -990,7 +989,6 @@
       await pushEntriesToCloudIfLoggedIn();
     });
 
-    // 検索機能
     function runSearch() {
       const qSong = els.searchSongInput.value.trim();
       const qComposer = els.searchComposerInput.value.trim();
@@ -1020,7 +1018,6 @@
           continue;
         }
 
-        // 「もしかして？」候補のスコア計算
         let songScore = 1;
         let composerScore = 1;
         if (nSong) {
@@ -1107,7 +1104,6 @@
       els.maybeResults.innerHTML = "";
     });
 
-    // 一覧機能（曲名一覧・作曲者一覧・楽譜一覧 すべてアコーディオン展開）
     document.querySelectorAll(".subtab-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         currentSubtab = btn.dataset.subtab;
@@ -1174,7 +1170,6 @@
       }
 
       if (currentSubtab === "songs") {
-        // 曲名一覧（同名の曲があればまとめて展開表示）
         const map = new Map();
         for (const item of entries) {
           const key = item.song;
@@ -1186,7 +1181,6 @@
         );
         els.listContainer.innerHTML = renderAccordionGroup(groups, "song", "件");
       } else if (currentSubtab === "composers") {
-        // 作曲者一覧
         const map = new Map();
         for (const item of entries) {
           const key = item.composer;
@@ -1198,7 +1192,6 @@
         );
         els.listContainer.innerHTML = renderAccordionGroup(groups, "composer", "曲");
       } else if (currentSubtab === "books") {
-        // 楽譜一覧
         const map = new Map();
         for (const item of entries) {
           const key = item.book;
@@ -1236,7 +1229,6 @@
       }
     });
 
-    // メインタブ切り替え
     function switchTab(tabName) {
       currentTab = tabName;
       document.querySelectorAll(".tab-view").forEach((sec) => {
@@ -1253,29 +1245,35 @@
       btn.addEventListener("click", () => switchTab(btn.dataset.tab));
     });
 
-    // Firebase / Googleアカウント同期
-    function parseFirebaseConfigText(rawText) {
-      const trimmed = (rawText || "").trim();
-      if (!trimmed) return null;
-      const objMatch = trimmed.match(/\{[\s\S]*\}/);
-      if (!objMatch) throw new Error("Firebase設定の形式を読み取れませんでした。");
-      const jsonLike = objMatch[0]
-        .replace(/(\b[a-zA-Z0-9_]+\b)\s*:/g, '"$1":')
-        .replace(/'/g, '"')
-        .replace(/,\s*([}\]])/g, "$1");
-      const parsed = JSON.parse(jsonLike);
-      if (!parsed.apiKey || !parsed.projectId) {
-        throw new Error("apiKey または projectId が含まれていません。");
-      }
-      return parsed;
+    // 改行や余計な文字が混ざっても安全に項目を抜き出す
+    function extractConfigSafe(rawText) {
+      const text = String(rawText || "");
+      const pick = (key) => {
+        const m = text.match(new RegExp(`${key}\\s*[:=]\\s*["']([^"']+)["']`));
+        return m ? m[1].replace(/\s+/g, "") : "";
+      };
+      const cfg = {
+        apiKey: pick("apiKey") || DEFAULT_FIREBASE_CONFIG.apiKey,
+        authDomain: pick("authDomain") || DEFAULT_FIREBASE_CONFIG.authDomain,
+        projectId: pick("projectId") || DEFAULT_FIREBASE_CONFIG.projectId,
+        storageBucket: pick("storageBucket") || DEFAULT_FIREBASE_CONFIG.storageBucket,
+        messagingSenderId: pick("messagingSenderId") || DEFAULT_FIREBASE_CONFIG.messagingSenderId,
+        appId: pick("appId") || DEFAULT_FIREBASE_CONFIG.appId,
+        measurementId: pick("measurementId") || DEFAULT_FIREBASE_CONFIG.measurementId
+      };
+      return cfg;
     }
 
     function getActiveFirebaseConfig() {
       const rawConfig = localStorage.getItem(FB_CONFIG_KEY);
       if (rawConfig) {
-        const parsed = JSON.parse(rawConfig);
-        if (parsed && parsed.apiKey && parsed.projectId) {
-          return parsed;
+        try {
+          const parsed = JSON.parse(rawConfig);
+          if (parsed && parsed.apiKey && parsed.projectId) {
+            return parsed;
+          }
+        } catch {
+          return extractConfigSafe(rawConfig);
         }
       }
       return DEFAULT_FIREBASE_CONFIG;
@@ -1386,8 +1384,7 @@
     }
 
     els.openSyncModalBtn.addEventListener("click", () => {
-      const saved = localStorage.getItem(FB_CONFIG_KEY);
-      els.firebaseConfigInput.value = saved || JSON.stringify(DEFAULT_FIREBASE_CONFIG, null, 2);
+      els.firebaseConfigInput.value = JSON.stringify(getActiveFirebaseConfig(), null, 2);
       updateSyncHeaderUI();
       els.syncModal.classList.add("open");
       els.syncModal.setAttribute("aria-hidden", "false");
@@ -1406,27 +1403,18 @@
     });
 
     els.saveFirebaseConfigBtn.addEventListener("click", () => {
-      try {
-        const cfg = parseFirebaseConfigText(els.firebaseConfigInput.value);
-        if (!cfg) {
-          localStorage.removeItem(FB_CONFIG_KEY);
-          initFirebaseFromStorage();
-          showToast(els.syncToast, "デフォルト設定を適用しました。「Googleでログイン」を押してください。");
-          return;
-        }
-        localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(cfg, null, 2));
-        initFirebaseFromStorage();
-        showToast(els.syncToast, "Firebase設定を保存しました。「Googleでログイン」を押してください。");
-      } catch (err) {
-        showToast(els.syncToast, err.message || "設定の保存に失敗しました。", "error");
-      }
+      const cfg = extractConfigSafe(els.firebaseConfigInput.value);
+      localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(cfg, null, 2));
+      els.firebaseConfigInput.value = JSON.stringify(cfg, null, 2);
+      initFirebaseFromStorage();
+      showToast(els.syncToast, "Firebase設定を保存しました。「Googleでログイン」を押してください。");
     });
 
     els.clearFirebaseConfigBtn.addEventListener("click", () => {
-      localStorage.removeItem(FB_CONFIG_KEY);
+      localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(DEFAULT_FIREBASE_CONFIG, null, 2));
       els.firebaseConfigInput.value = JSON.stringify(DEFAULT_FIREBASE_CONFIG, null, 2);
       initFirebaseFromStorage();
-      showToast(els.syncToast, "保存済み設定をクリアし、組み込み設定に戻しました。");
+      showToast(els.syncToast, "組み込み設定にリセットしました。「Googleでログイン」を押してください。");
     });
 
     els.googleLoginBtn.addEventListener("click", async () => {
@@ -1434,7 +1422,7 @@
         initFirebaseFromStorage();
       }
       if (!fbAuth) {
-        showToast(els.syncToast, "Firebaseの初期化に失敗しました。", "error");
+        showToast(els.syncToast, "先にFirebase設定を保存してください。", "error");
         return;
       }
       const provider = new GoogleAuthProvider();
@@ -1469,7 +1457,6 @@
       showToast(els.syncToast, "クラウドへ同期しました。");
     });
 
-    // 初期描画
     renderBookSuggestions();
     renderList();
     initFirebaseFromStorage();
