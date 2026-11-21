@@ -708,4 +708,750 @@
         <span class="nav-icon">🔍</span>
         <span>検索</span>
       </button>
-      <button type="button" class="nav
+      <button type="button" class="nav-btn" data-tab="list">
+        <span class="nav-icon">☰</span>
+        <span>一覧</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Googleアカウント同期モーダル -->
+  <div class="modal-backdrop" id="syncModal" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>Googleアカウント同期（Firebase）</h2>
+        <button type="button" class="close-btn" id="closeSyncModalBtn" aria-label="閉じる">✕</button>
+      </div>
+
+      <div class="help-box">
+        PCとiPhoneで同じGoogleアカウントを使って同期するには、Firebaseコンソールで作成した<strong>Webアプリの構成（firebaseConfig）</strong>を貼り付けてGoogleログインを有効にします。未設定でもこの端末内に保存してすぐ使えます。
+        <br />Firestoreルール例：<code>allow read, write: if request.auth != null && request.auth.uid == userId;</code>
+      </div>
+
+      <div id="authStatusBox" class="result-box" style="margin-bottom:12px;">
+        <div id="authStatusText" style="font-weight:700; font-size:13.5px;">未ログイン（ローカル保存中）</div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="googleLoginBtn">Googleでログイン</button>
+          <button type="button" class="btn btn-secondary" id="googleLogoutBtn">ログアウト</button>
+          <button type="button" class="btn btn-secondary" id="forceSyncBtn">今すぐ同期</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="firebaseConfigInput">Firebase Config（JSON形式 または <code>const firebaseConfig = {...}</code>）</label>
+        <textarea id="firebaseConfigInput" rows="7" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}'></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="saveFirebaseConfigBtn">設定を保存</button>
+        <button type="button" class="btn btn-secondary" id="clearFirebaseConfigBtn">設定を削除</button>
+      </div>
+      <div id="syncToast" class="toast" role="status"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signInWithRedirect,
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import {
+      getFirestore,
+      doc,
+      getDoc,
+      setDoc,
+      onSnapshot
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    const STORAGE_KEY = "piano_sheet_music_entries_v1";
+    const FB_CONFIG_KEY = "piano_sheet_music_firebase_config_v1";
+
+    let entries = loadLocalEntries();
+    let currentTab = "register";
+    let currentSubtab = "songs";
+    const expandedKeys = new Set();
+
+    let fbApp = null;
+    let fbAuth = null;
+    let fbDb = null;
+    let currentUser = null;
+    let unsubscribeSnapshot = null;
+    let isApplyingRemote = false;
+
+    const els = {
+      registerForm: document.getElementById("registerForm"),
+      bookInput: document.getElementById("bookInput"),
+      songInput: document.getElementById("songInput"),
+      composerInput: document.getElementById("composerInput"),
+      pageInput: document.getElementById("pageInput"),
+      bookSuggestions: document.getElementById("bookSuggestions"),
+      registerToast: document.getElementById("registerToast"),
+      searchSongInput: document.getElementById("searchSongInput"),
+      searchComposerInput: document.getElementById("searchComposerInput"),
+      searchBtn: document.getElementById("searchBtn"),
+      clearSearchBtn: document.getElementById("clearSearchBtn"),
+      searchHint: document.getElementById("searchHint"),
+      exactResults: document.getElementById("exactResults"),
+      maybeResults: document.getElementById("maybeResults"),
+      listContainer: document.getElementById("listContainer"),
+      openSyncModalBtn: document.getElementById("openSyncModalBtn"),
+      closeSyncModalBtn: document.getElementById("closeSyncModalBtn"),
+      syncModal: document.getElementById("syncModal"),
+      syncDot: document.getElementById("syncDot"),
+      syncBtnLabel: document.getElementById("syncBtnLabel"),
+      statusSub: document.getElementById("statusSub"),
+      authStatusText: document.getElementById("authStatusText"),
+      googleLoginBtn: document.getElementById("googleLoginBtn"),
+      googleLogoutBtn: document.getElementById("googleLogoutBtn"),
+      forceSyncBtn: document.getElementById("forceSyncBtn"),
+      firebaseConfigInput: document.getElementById("firebaseConfigInput"),
+      saveFirebaseConfigBtn: document.getElementById("saveFirebaseConfigBtn"),
+      clearFirebaseConfigBtn: document.getElementById("clearFirebaseConfigBtn"),
+      syncToast: document.getElementById("syncToast")
+    };
+
+    function loadLocalEntries() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveLocalEntries(list) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    }
+
+    function showToast(el, message, type = "success") {
+      el.textContent = message;
+      el.className = `toast show ${type}`;
+      clearTimeout(el._timer);
+      el._timer = setTimeout(() => {
+        el.className = "toast";
+      }, 3200);
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function normalizeForSearch(str) {
+      return String(str ?? "")
+        .toLowerCase()
+        .normalize("NFKC")
+        .replace(/[\s ・･ー‐‑–—−〜～、。,.!！?？「」『』()（）【】［］]/g, "");
+    }
+
+    // レーベンシュタイン距離（類似度計算用）
+    function levenshtein(a, b) {
+      const m = a.length;
+      const n = b.length;
+      if (m === 0) return n;
+      if (n === 0) return m;
+      const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+      for (let i = 0; i <= m; i++) dp[i][0] = i;
+      for (let j = 0; j <= n; j++) dp[0][j] = j;
+      for (let i = 1; i <= m; i++) {
+        for (let j = 1; j <= n; j++) {
+          const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+          dp[i][j] = Math.min(
+            dp[i - 1][j] + 1,
+            dp[i][j - 1] + 1,
+            dp[i - 1][j - 1] + cost
+          );
+        }
+      }
+      return dp[m][n];
+    }
+
+    function calcSimilarity(query, target) {
+      const q = normalizeForSearch(query);
+      const t = normalizeForSearch(target);
+      if (!q || !t) return 0;
+      if (q === t) return 1;
+      if (t.includes(q) || q.includes(t)) {
+        const minLen = Math.min(q.length, t.length);
+        const maxLen = Math.max(q.length, t.length);
+        return Math.max(0.72, minLen / maxLen);
+      }
+      const dist = levenshtein(q, t);
+      const maxLen = Math.max(q.length, t.length);
+      return Math.max(0, (maxLen - dist) / maxLen);
+    }
+
+    function getUniqueBooks() {
+      const map = new Map();
+      for (const item of entries) {
+        const b = (item.book || "").trim();
+        if (!b) continue;
+        const key = normalizeForSearch(b);
+        if (!map.has(key)) {
+          map.set(key, b);
+        }
+      }
+      return Array.from(map.values());
+    }
+
+    function renderBookSuggestions() {
+      const books = getUniqueBooks();
+      const currentVal = els.bookInput.value.trim();
+      if (books.length === 0) {
+        els.bookSuggestions.innerHTML = "";
+        return;
+      }
+      els.bookSuggestions.innerHTML = books
+        .map((book) => {
+          const active = book === currentVal ? "active" : "";
+          return `<button type="button" class="chip ${active}" data-book="${escapeHtml(book)}">${escapeHtml(book)}</button>`;
+        })
+        .join("");
+    }
+
+    els.bookSuggestions.addEventListener("click", (e) => {
+      const chip = e.target.closest(".chip");
+      if (!chip) return;
+      els.bookInput.value = chip.dataset.book || "";
+      els.bookInput.focus();
+      renderBookSuggestions();
+    });
+
+    els.bookInput.addEventListener("input", renderBookSuggestions);
+
+    els.registerForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const book = els.bookInput.value.trim();
+      const song = els.songInput.value.trim();
+      const composer = els.composerInput.value.trim();
+      const pageRaw = els.pageInput.value.trim();
+      const pageNum = Number(pageRaw);
+
+      if (!book) {
+        showToast(els.registerToast, "楽譜の名前を入力してください。", "error");
+        els.bookInput.focus();
+        return;
+      }
+      if (!song) {
+        showToast(els.registerToast, "曲名を入力してください。", "error");
+        els.songInput.focus();
+        return;
+      }
+      if (!composer) {
+        showToast(els.registerToast, "作曲者を入力してください。", "error");
+        els.composerInput.focus();
+        return;
+      }
+      if (!pageRaw || !Number.isInteger(pageNum) || pageNum <= 0) {
+        showToast(els.registerToast, "ページは1以上の数字で入力してください。", "error");
+        els.pageInput.focus();
+        return;
+      }
+
+      const newItem = {
+        id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        book,
+        song,
+        composer,
+        page: pageNum,
+        updatedAt: Date.now()
+      };
+
+      entries = [newItem, ...entries];
+      saveLocalEntries(entries);
+      renderBookSuggestions();
+      renderList();
+
+      els.songInput.value = "";
+      els.composerInput.value = "";
+      els.pageInput.value = "";
+      els.songInput.focus();
+
+      showToast(els.registerToast, `「${song}」を登録しました！`);
+      await pushEntriesToCloudIfLoggedIn();
+    });
+
+    // 検索機能
+    function runSearch() {
+      const qSong = els.searchSongInput.value.trim();
+      const qComposer = els.searchComposerInput.value.trim();
+
+      if (!qSong && !qComposer) {
+        els.searchHint.textContent = "曲名または作曲者を入力して「検索する」を押してください。";
+        els.exactResults.innerHTML = "";
+        els.maybeResults.innerHTML = "";
+        return;
+      }
+
+      const nSong = normalizeForSearch(qSong);
+      const nComposer = normalizeForSearch(qComposer);
+
+      const exactMatches = [];
+      const maybeMatches = [];
+
+      for (const item of entries) {
+        const tSong = normalizeForSearch(item.song);
+        const tComposer = normalizeForSearch(item.composer);
+
+        const songExact = !nSong || tSong.includes(nSong);
+        const composerExact = !nComposer || tComposer.includes(nComposer);
+
+        if (songExact && composerExact) {
+          exactMatches.push(item);
+          continue;
+        }
+
+        // 「もしかして？」候補のスコア計算
+        let songScore = 1;
+        let composerScore = 1;
+        if (nSong) {
+          songScore = tSong.includes(nSong) ? 1 : calcSimilarity(qSong, item.song);
+        }
+        if (nComposer) {
+          composerScore = tComposer.includes(nComposer) ? 1 : calcSimilarity(qComposer, item.composer);
+        }
+
+        const combinedScore =
+          nSong && nComposer
+            ? songScore * 0.6 + composerScore * 0.4
+            : nSong
+              ? songScore
+              : composerScore;
+
+        const threshold =
+          (nSong && !tSong.includes(nSong) && songScore >= 0.45) ||
+          (nComposer && !tComposer.includes(nComposer) && composerScore >= 0.45) ||
+          combinedScore >= 0.5;
+
+        if (threshold) {
+          maybeMatches.push({ item, score: combinedScore });
+        }
+      }
+
+      maybeMatches.sort((a, b) => b.score - a.score);
+
+      els.searchHint.textContent =
+        exactMatches.length > 0
+          ? `${exactMatches.length}件ヒットしました。`
+          : "完全・部分一致する項目はありませんでした。";
+
+      if (exactMatches.length > 0) {
+        els.exactResults.innerHTML = exactMatches
+          .map(
+            (item) => `
+            <div class="result-box">
+              <div class="result-headline">${escapeHtml(item.song)} ${escapeHtml(item.composer)}がヒットしました</div>
+              <div class="result-location">${escapeHtml(item.book)}の${escapeHtml(item.page)}ページです。</div>
+            </div>
+          `
+          )
+          .join("");
+      } else {
+        els.exactResults.innerHTML =
+          `<div class="empty-state" style="padding:16px 8px;">一致する楽譜データが見つかりませんでした。</div>`;
+      }
+
+      if (maybeMatches.length > 0) {
+        els.maybeResults.innerHTML = `
+          <div class="maybe-section">
+            <h4 class="maybe-title">💡 もしかして？</h4>
+            ${maybeMatches
+              .slice(0, 6)
+              .map(
+                ({ item }) => `
+                <div class="maybe-card">
+                  <div class="result-headline">${escapeHtml(item.song)} ${escapeHtml(item.composer)}</div>
+                  <div class="result-location">${escapeHtml(item.book)}の${escapeHtml(item.page)}ページです。</div>
+                </div>
+              `
+              )
+              .join("")}
+          </div>
+        `;
+      } else {
+        els.maybeResults.innerHTML = "";
+      }
+    }
+
+    els.searchBtn.addEventListener("click", runSearch);
+    els.searchSongInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") runSearch();
+    });
+    els.searchComposerInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") runSearch();
+    });
+    els.clearSearchBtn.addEventListener("click", () => {
+      els.searchSongInput.value = "";
+      els.searchComposerInput.value = "";
+      els.searchHint.textContent = "曲名または作曲者を入力して「検索する」を押してください。";
+      els.exactResults.innerHTML = "";
+      els.maybeResults.innerHTML = "";
+    });
+
+    // 一覧機能（曲名一覧・作曲者一覧・楽譜一覧 すべてアコーディオン展開）
+    document.querySelectorAll(".subtab-btn").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        currentSubtab = btn.dataset.subtab;
+        document.querySelectorAll(".subtab-btn").forEach((b) => {
+          b.classList.toggle("active", b.dataset.subtab === currentSubtab);
+        });
+        renderList();
+      });
+    });
+
+    async function deleteEntry(id) {
+      entries = entries.filter((item) => item.id !== id);
+      saveLocalEntries(entries);
+      renderBookSuggestions();
+      renderList();
+      await pushEntriesToCloudIfLoggedIn();
+    }
+
+    function renderAccordionGroup(groups, typePrefix, badgeSuffix) {
+      if (groups.length === 0) {
+        return `<div class="empty-state">まだ登録がありません。「登録」タブから追加してください。</div>`;
+      }
+
+      return groups
+        .map((group) => {
+          const key = `${typePrefix}::${group.title}`;
+          const isOpen = expandedKeys.has(key);
+          const rowsHtml = group.items
+            .map(
+              (item) => `
+              <div class="detail-row">
+                <div class="detail-main">
+                  <strong>${escapeHtml(item.song)}</strong>
+                  <span class="detail-sub"> ／ 作曲者：${escapeHtml(item.composer)} ／ 楽譜：${escapeHtml(item.book)}（${escapeHtml(item.page)}ページ）</span>
+                </div>
+                <button type="button" class="btn-danger-ghost" data-delete-id="${escapeHtml(item.id)}">削除</button>
+              </div>
+            `
+            )
+            .join("");
+
+          return `
+            <div class="accordion-item ${isOpen ? "open" : ""}" data-acc-key="${escapeHtml(key)}">
+              <button type="button" class="accordion-trigger">
+                <span>${escapeHtml(group.title)}</span>
+                <span class="accordion-meta">
+                  <span class="badge">${group.items.length}${badgeSuffix}</span>
+                  <span class="chev">▼</span>
+                </span>
+              </button>
+              <div class="accordion-panel">
+                ${rowsHtml}
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+    }
+
+    function renderList() {
+      if (entries.length === 0) {
+        els.listContainer.innerHTML = `<div class="empty-state">まだ登録がありません。「登録」タブから楽譜と曲を登録しましょう。</div>`;
+        return;
+      }
+
+      if (currentSubtab === "songs") {
+        // 曲名一覧（同名の曲があればまとめて展開表示）
+        const map = new Map();
+        for (const item of entries) {
+          const key = item.song;
+          if (!map.has(key)) map.set(key, { title: item.song, items: [] });
+          map.get(key).items.push(item);
+        }
+        const groups = Array.from(map.values()).sort((a, b) =>
+          a.title.localeCompare(b.title, "ja")
+        );
+        els.listContainer.innerHTML = renderAccordionGroup(groups, "song", "件");
+      } else if (currentSubtab === "composers") {
+        // 作曲者一覧
+        const map = new Map();
+        for (const item of entries) {
+          const key = item.composer;
+          if (!map.has(key)) map.set(key, { title: item.composer, items: [] });
+          map.get(key).items.push(item);
+        }
+        const groups = Array.from(map.values()).sort((a, b) =>
+          a.title.localeCompare(b.title, "ja")
+        );
+        els.listContainer.innerHTML = renderAccordionGroup(groups, "composer", "曲");
+      } else if (currentSubtab === "books") {
+        // 楽譜一覧
+        const map = new Map();
+        for (const item of entries) {
+          const key = item.book;
+          if (!map.has(key)) map.set(key, { title: item.book, items: [] });
+          map.get(key).items.push(item);
+        }
+        const groups = Array.from(map.values()).sort((a, b) =>
+          a.title.localeCompare(b.title, "ja")
+        );
+        els.listContainer.innerHTML = renderAccordionGroup(groups, "book", "曲");
+      }
+    }
+
+    els.listContainer.addEventListener("click", (e) => {
+      const delBtn = e.target.closest("[data-delete-id]");
+      if (delBtn) {
+        e.stopPropagation();
+        const id = delBtn.dataset.deleteId;
+        deleteEntry(id);
+        return;
+      }
+
+      const trigger = e.target.closest(".accordion-trigger");
+      if (trigger) {
+        const itemEl = trigger.closest(".accordion-item");
+        const key = itemEl?.dataset.accKey;
+        if (!key) return;
+        if (expandedKeys.has(key)) {
+          expandedKeys.delete(key);
+          itemEl.classList.remove("open");
+        } else {
+          expandedKeys.add(key);
+          itemEl.classList.add("open");
+        }
+      }
+    });
+
+    // メインタブ切り替え
+    function switchTab(tabName) {
+      currentTab = tabName;
+      document.querySelectorAll(".tab-view").forEach((sec) => {
+        sec.style.display = sec.id === `view-${tabName}` ? "" : "none";
+      });
+      document.querySelectorAll(".nav-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.tab === tabName);
+      });
+      if (tabName === "list") renderList();
+      if (tabName === "register") renderBookSuggestions();
+    }
+
+    document.querySelectorAll(".nav-btn").forEach((btn) => {
+      btn.addEventListener("click", () => switchTab(btn.dataset.tab));
+    });
+
+    // Firebase / Googleアカウント同期
+    function parseFirebaseConfigText(rawText) {
+      const trimmed = (rawText || "").trim();
+      if (!trimmed) return null;
+      const objMatch = trimmed.match(/\{[\s\S]*\}/);
+      if (!objMatch) throw new Error("Firebase設定の形式を読み取れませんでした。");
+      const jsonLike = objMatch[0]
+        .replace(/(\b[a-zA-Z0-9_]+\b)\s*:/g, '"$1":')
+        .replace(/'/g, '"')
+        .replace(/,\s*([}\]])/g, "$1");
+      const parsed = JSON.parse(jsonLike);
+      if (!parsed.apiKey || !parsed.projectId) {
+        throw new Error("apiKey または projectId が含まれていません。");
+      }
+      return parsed;
+    }
+
+    function updateSyncHeaderUI() {
+      if (currentUser) {
+        els.syncDot.classList.add("connected");
+        els.syncBtnLabel.textContent = "同期中";
+        els.statusSub.textContent = `Google同期：${currentUser.email || currentUser.displayName || "接続済み"}`;
+        els.authStatusText.textContent = `ログイン中：${currentUser.email || currentUser.displayName || "Googleアカウント"}`;
+      } else {
+        els.syncDot.classList.remove("connected");
+        els.syncBtnLabel.textContent = "Google同期";
+        const hasConfig = Boolean(localStorage.getItem(FB_CONFIG_KEY));
+        els.statusSub.textContent = hasConfig ? "Firebase設定済み（未ログイン）" : "ローカル保存モード";
+        els.authStatusText.textContent = hasConfig
+          ? "未ログイン（Googleでログインすると同期されます）"
+          : "未ログイン（ローカル保存中）";
+      }
+    }
+
+    function mergeEntries(localList, remoteList) {
+      const map = new Map();
+      for (const item of [...remoteList, ...localList]) {
+        if (!item || !item.id) continue;
+        const prev = map.get(item.id);
+        if (!prev || (item.updatedAt || 0) >= (prev.updatedAt || 0)) {
+          map.set(item.id, item);
+        }
+      }
+      return Array.from(map.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    }
+
+    async function pushEntriesToCloudIfLoggedIn() {
+      if (!currentUser || !fbDb || isApplyingRemote) return;
+      try {
+        const ref = doc(fbDb, "users", currentUser.uid, "pianoSheetMusic", "data");
+        await setDoc(ref, { entries, updatedAt: Date.now() }, { merge: true });
+      } catch (err) {
+        console.error("Cloud push error:", err);
+      }
+    }
+
+    function startCloudSync(user) {
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+        unsubscribeSnapshot = null;
+      }
+      if (!user || !fbDb) return;
+
+      const ref = doc(fbDb, "users", user.uid, "pianoSheetMusic", "data");
+
+      getDoc(ref)
+        .then(async (snap) => {
+          const remoteEntries = snap.exists() && Array.isArray(snap.data().entries) ? snap.data().entries : [];
+          const merged = mergeEntries(entries, remoteEntries);
+          isApplyingRemote = true;
+          entries = merged;
+          saveLocalEntries(entries);
+          isApplyingRemote = false;
+          renderBookSuggestions();
+          renderList();
+          await setDoc(ref, { entries, updatedAt: Date.now() }, { merge: true });
+        })
+        .catch((err) => console.error("Initial cloud fetch error:", err));
+
+      unsubscribeSnapshot = onSnapshot(ref, (snap) => {
+        if (!snap.exists()) return;
+        const remoteEntries = Array.isArray(snap.data().entries) ? snap.data().entries : [];
+        const merged = mergeEntries(entries, remoteEntries);
+        if (JSON.stringify(merged) !== JSON.stringify(entries)) {
+          isApplyingRemote = true;
+          entries = merged;
+          saveLocalEntries(entries);
+          isApplyingRemote = false;
+          renderBookSuggestions();
+          renderList();
+        }
+      });
+    }
+
+    function initFirebaseFromStorage() {
+      const rawConfig = localStorage.getItem(FB_CONFIG_KEY);
+      if (!rawConfig) {
+        updateSyncHeaderUI();
+        return;
+      }
+      try {
+        const cfg = JSON.parse(rawConfig);
+        fbApp = getApps().length ? getApps()[0] : initializeApp(cfg);
+        fbAuth = getAuth(fbApp);
+        fbDb = getFirestore(fbApp);
+
+        onAuthStateChanged(fbAuth, (user) => {
+          currentUser = user;
+          updateSyncHeaderUI();
+          if (user) {
+            startCloudSync(user);
+          } else if (unsubscribeSnapshot) {
+            unsubscribeSnapshot();
+            unsubscribeSnapshot = null;
+          }
+        });
+      } catch (err) {
+        console.error("Firebase init error:", err);
+        updateSyncHeaderUI();
+      }
+    }
+
+    els.openSyncModalBtn.addEventListener("click", () => {
+      els.firebaseConfigInput.value = localStorage.getItem(FB_CONFIG_KEY) || "";
+      updateSyncHeaderUI();
+      els.syncModal.classList.add("open");
+      els.syncModal.setAttribute("aria-hidden", "false");
+    });
+
+    els.closeSyncModalBtn.addEventListener("click", () => {
+      els.syncModal.classList.remove("open");
+      els.syncModal.setAttribute("aria-hidden", "true");
+    });
+
+    els.syncModal.addEventListener("click", (e) => {
+      if (e.target === els.syncModal) {
+        els.syncModal.classList.remove("open");
+        els.syncModal.setAttribute("aria-hidden", "true");
+      }
+    });
+
+    els.saveFirebaseConfigBtn.addEventListener("click", () => {
+      try {
+        const cfg = parseFirebaseConfigText(els.firebaseConfigInput.value);
+        if (!cfg) {
+          showToast(els.syncToast, "Firebase設定を入力してください。", "error");
+          return;
+        }
+        localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(cfg, null, 2));
+        initFirebaseFromStorage();
+        showToast(els.syncToast, "Firebase設定を保存しました。「Googleでログイン」を押してください。");
+      } catch (err) {
+        showToast(els.syncToast, err.message || "設定の保存に失敗しました。", "error");
+      }
+    });
+
+    els.clearFirebaseConfigBtn.addEventListener("click", () => {
+      localStorage.removeItem(FB_CONFIG_KEY);
+      els.firebaseConfigInput.value = "";
+      currentUser = null;
+      if (unsubscribeSnapshot) {
+        unsubscribeSnapshot();
+        unsubscribeSnapshot = null;
+      }
+      updateSyncHeaderUI();
+      showToast(els.syncToast, "Firebase設定を削除しました。");
+    });
+
+    els.googleLoginBtn.addEventListener("click", async () => {
+      if (!fbAuth) {
+        showToast(els.syncToast, "先にFirebase設定を保存してください。", "error");
+        return;
+      }
+      const provider = new GoogleAuthProvider();
+      try {
+        await signInWithPopup(fbAuth, provider);
+        showToast(els.syncToast, "Googleログインに成功しました！");
+      } catch (err) {
+        if (err.code === "auth/popup-blocked" || err.code === "auth/operation-not-supported-in-this-environment") {
+          await signInWithRedirect(fbAuth, provider);
+        } else {
+          showToast(els.syncToast, `ログインエラー：${err.message}`, "error");
+        }
+      }
+    });
+
+    els.googleLogoutBtn.addEventListener("click", async () => {
+      if (!fbAuth) return;
+      try {
+        await signOut(fbAuth);
+        showToast(els.syncToast, "ログアウトしました。");
+      } catch (err) {
+        showToast(els.syncToast, `ログアウトエラー：${err.message}`, "error");
+      }
+    });
+
+    els.forceSyncBtn.addEventListener("click", async () => {
+      if (!currentUser) {
+        showToast(els.syncToast, "Googleログイン後に同期できます。", "error");
+        return;
+      }
+      await pushEntriesToCloudIfLoggedIn();
+      showToast(els.syncToast, "クラウドへ同期しました。");
+    });
+
+    // 初期描画
+    renderBookSuggestions();
+    renderList();
+    initFirebaseFromStorage();
+  </script>
+</body>
+</html>
