@@ -771,6 +771,16 @@
     const STORAGE_KEY = "piano_sheet_music_entries_v1";
     const FB_CONFIG_KEY = "piano_sheet_music_firebase_config_v1";
 
+    const DEFAULT_FIREBASE_CONFIG = {
+      apiKey: "AIzaSyD85gLypps0PijzIZz2K9OR6HOnj1WOWRQ",
+      authDomain: "piano-sheet-music-c26a6.firebaseapp.com",
+      projectId: "piano-sheet-music-c26a6",
+      storageBucket: "piano-sheet-music-c26a6.firebasestorage.app",
+      messagingSenderId: "606854328239",
+      appId: "1:606854328239:web:b4efb41f0d2a41c0b9895a",
+      measurementId: "G-W122FD1N4E"
+    };
+
     let entries = loadLocalEntries();
     let currentTab = "register";
     let currentSubtab = "songs";
@@ -1260,6 +1270,17 @@
       return parsed;
     }
 
+    function getActiveFirebaseConfig() {
+      const rawConfig = localStorage.getItem(FB_CONFIG_KEY);
+      if (rawConfig) {
+        const parsed = JSON.parse(rawConfig);
+        if (parsed && parsed.apiKey && parsed.projectId) {
+          return parsed;
+        }
+      }
+      return DEFAULT_FIREBASE_CONFIG;
+    }
+
     function updateSyncHeaderUI() {
       if (currentUser) {
         els.syncDot.classList.add("connected");
@@ -1269,7 +1290,7 @@
       } else {
         els.syncDot.classList.remove("connected");
         els.syncBtnLabel.textContent = "Google同期";
-        const hasConfig = Boolean(localStorage.getItem(FB_CONFIG_KEY));
+        const hasConfig = Boolean(getActiveFirebaseConfig());
         els.statusSub.textContent = hasConfig ? "Firebase設定済み（未ログイン）" : "ローカル保存モード";
         els.authStatusText.textContent = hasConfig
           ? "未ログイン（Googleでログインすると同期されます）"
@@ -1338,13 +1359,12 @@
     }
 
     function initFirebaseFromStorage() {
-      const rawConfig = localStorage.getItem(FB_CONFIG_KEY);
-      if (!rawConfig) {
-        updateSyncHeaderUI();
-        return;
-      }
       try {
-        const cfg = JSON.parse(rawConfig);
+        const cfg = getActiveFirebaseConfig();
+        if (!cfg) {
+          updateSyncHeaderUI();
+          return;
+        }
         fbApp = getApps().length ? getApps()[0] : initializeApp(cfg);
         fbAuth = getAuth(fbApp);
         fbDb = getFirestore(fbApp);
@@ -1366,7 +1386,8 @@
     }
 
     els.openSyncModalBtn.addEventListener("click", () => {
-      els.firebaseConfigInput.value = localStorage.getItem(FB_CONFIG_KEY) || "";
+      const saved = localStorage.getItem(FB_CONFIG_KEY);
+      els.firebaseConfigInput.value = saved || JSON.stringify(DEFAULT_FIREBASE_CONFIG, null, 2);
       updateSyncHeaderUI();
       els.syncModal.classList.add("open");
       els.syncModal.setAttribute("aria-hidden", "false");
@@ -1388,7 +1409,9 @@
       try {
         const cfg = parseFirebaseConfigText(els.firebaseConfigInput.value);
         if (!cfg) {
-          showToast(els.syncToast, "Firebase設定を入力してください。", "error");
+          localStorage.removeItem(FB_CONFIG_KEY);
+          initFirebaseFromStorage();
+          showToast(els.syncToast, "デフォルト設定を適用しました。「Googleでログイン」を押してください。");
           return;
         }
         localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(cfg, null, 2));
@@ -1401,19 +1424,17 @@
 
     els.clearFirebaseConfigBtn.addEventListener("click", () => {
       localStorage.removeItem(FB_CONFIG_KEY);
-      els.firebaseConfigInput.value = "";
-      currentUser = null;
-      if (unsubscribeSnapshot) {
-        unsubscribeSnapshot();
-        unsubscribeSnapshot = null;
-      }
-      updateSyncHeaderUI();
-      showToast(els.syncToast, "Firebase設定を削除しました。");
+      els.firebaseConfigInput.value = JSON.stringify(DEFAULT_FIREBASE_CONFIG, null, 2);
+      initFirebaseFromStorage();
+      showToast(els.syncToast, "保存済み設定をクリアし、組み込み設定に戻しました。");
     });
 
     els.googleLoginBtn.addEventListener("click", async () => {
       if (!fbAuth) {
-        showToast(els.syncToast, "先にFirebase設定を保存してください。", "error");
+        initFirebaseFromStorage();
+      }
+      if (!fbAuth) {
+        showToast(els.syncToast, "Firebaseの初期化に失敗しました。", "error");
         return;
       }
       const provider = new GoogleAuthProvider();
