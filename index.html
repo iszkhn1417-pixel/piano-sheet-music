@@ -251,6 +251,29 @@
       background: #efeae2;
     }
 
+    .row-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .btn-edit-ghost {
+      background: var(--surface);
+      color: var(--primary);
+      border: 1px solid #c3dccf;
+      padding: 6px 10px;
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .btn-edit-ghost:hover {
+      background: var(--primary-soft);
+    }
+
     .btn-danger-ghost {
       background: transparent;
       color: var(--danger);
@@ -259,6 +282,7 @@
       font-size: 12px;
       border-radius: 8px;
       cursor: pointer;
+      font-family: inherit;
     }
 
     .btn-danger-ghost:hover {
@@ -523,7 +547,7 @@
       background: linear-gradient(to top, rgba(45, 90, 71, 0.08), transparent);
     }
 
-    /* モーダル（Google同期設定） */
+    /* モーダル（Google同期設定・修正） */
     .modal-backdrop {
       position: fixed;
       inset: 0;
@@ -715,6 +739,46 @@
     </div>
   </nav>
 
+  <!-- 登録データ修正モーダル -->
+  <div class="modal-backdrop" id="editModal" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>登録データの修正</h2>
+        <button type="button" class="close-btn" id="closeEditModalBtn" aria-label="閉じる">✕</button>
+      </div>
+
+      <form id="editForm" novalidate>
+        <input type="hidden" id="editIdInput" />
+
+        <div class="field">
+          <label class="field-label" for="editBookInput">楽譜の名前</label>
+          <input type="text" id="editBookInput" autocomplete="off" />
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="editSongInput">曲名</label>
+          <input type="text" id="editSongInput" autocomplete="off" />
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="editComposerInput">作曲者</label>
+          <input type="text" id="editComposerInput" autocomplete="off" />
+        </div>
+
+        <div class="field">
+          <label class="field-label" for="editPageInput">ページ（数字のみ）</label>
+          <input type="number" id="editPageInput" min="1" step="1" inputmode="numeric" />
+        </div>
+
+        <div class="modal-actions">
+          <button type="submit" class="btn btn-primary" style="flex:1;">変更を保存</button>
+          <button type="button" class="btn btn-secondary" id="cancelEditBtn">キャンセル</button>
+        </div>
+        <div id="editToast" class="toast" role="status"></div>
+      </form>
+    </div>
+  </div>
+
   <!-- Googleアカウント同期モーダル -->
   <div class="modal-backdrop" id="syncModal" aria-hidden="true">
     <div class="modal">
@@ -809,6 +873,16 @@
       exactResults: document.getElementById("exactResults"),
       maybeResults: document.getElementById("maybeResults"),
       listContainer: document.getElementById("listContainer"),
+      editModal: document.getElementById("editModal"),
+      closeEditModalBtn: document.getElementById("closeEditModalBtn"),
+      cancelEditBtn: document.getElementById("cancelEditBtn"),
+      editForm: document.getElementById("editForm"),
+      editIdInput: document.getElementById("editIdInput"),
+      editBookInput: document.getElementById("editBookInput"),
+      editSongInput: document.getElementById("editSongInput"),
+      editComposerInput: document.getElementById("editComposerInput"),
+      editPageInput: document.getElementById("editPageInput"),
+      editToast: document.getElementById("editToast"),
       openSyncModalBtn: document.getElementById("openSyncModalBtn"),
       closeSyncModalBtn: document.getElementById("closeSyncModalBtn"),
       syncModal: document.getElementById("syncModal"),
@@ -1104,6 +1178,91 @@
       els.maybeResults.innerHTML = "";
     });
 
+    // 修正モーダル操作
+    function openEditModal(id) {
+      const target = entries.find((item) => item.id === id);
+      if (!target) return;
+
+      els.editIdInput.value = target.id;
+      els.editBookInput.value = target.book || "";
+      els.editSongInput.value = target.song || "";
+      els.editComposerInput.value = target.composer || "";
+      els.editPageInput.value = target.page ?? "";
+      els.editToast.className = "toast";
+      els.editToast.textContent = "";
+
+      els.editModal.classList.add("open");
+      els.editModal.setAttribute("aria-hidden", "false");
+      els.editBookInput.focus();
+    }
+
+    function closeEditModal() {
+      els.editModal.classList.remove("open");
+      els.editModal.setAttribute("aria-hidden", "true");
+    }
+
+    els.closeEditModalBtn.addEventListener("click", closeEditModal);
+    els.cancelEditBtn.addEventListener("click", closeEditModal);
+    els.editModal.addEventListener("click", (e) => {
+      if (e.target === els.editModal) closeEditModal();
+    });
+
+    els.editForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const id = els.editIdInput.value;
+      const book = els.editBookInput.value.trim();
+      const song = els.editSongInput.value.trim();
+      const composer = els.editComposerInput.value.trim();
+      const pageRaw = els.editPageInput.value.trim();
+      const pageNum = Number(pageRaw);
+
+      if (!book) {
+        showToast(els.editToast, "楽譜の名前を入力してください。", "error");
+        els.editBookInput.focus();
+        return;
+      }
+      if (!song) {
+        showToast(els.editToast, "曲名を入力してください。", "error");
+        els.editSongInput.focus();
+        return;
+      }
+      if (!composer) {
+        showToast(els.editToast, "作曲者を入力してください。", "error");
+        els.editComposerInput.focus();
+        return;
+      }
+      if (!pageRaw || !Number.isInteger(pageNum) || pageNum <= 0) {
+        showToast(els.editToast, "ページは1以上の数字で入力してください。", "error");
+        els.editPageInput.focus();
+        return;
+      }
+
+      const idx = entries.findIndex((item) => item.id === id);
+      if (idx === -1) {
+        showToast(els.editToast, "対象のデータが見つかりませんでした。", "error");
+        return;
+      }
+
+      entries[idx] = {
+        ...entries[idx],
+        book,
+        song,
+        composer,
+        page: pageNum,
+        updatedAt: Date.now()
+      };
+
+      saveLocalEntries(entries);
+      renderBookSuggestions();
+      renderList();
+      if (els.searchSongInput.value.trim() || els.searchComposerInput.value.trim()) {
+        runSearch();
+      }
+      await pushEntriesToCloudIfLoggedIn();
+      closeEditModal();
+    });
+
+    // 一覧機能（曲名一覧・作曲者一覧・楽譜一覧 すべてアコーディオン展開＆各1件に修正/削除ボタン）
     document.querySelectorAll(".subtab-btn").forEach((btn) => {
       btn.addEventListener("click", () => {
         currentSubtab = btn.dataset.subtab;
@@ -1119,6 +1278,9 @@
       saveLocalEntries(entries);
       renderBookSuggestions();
       renderList();
+      if (els.searchSongInput.value.trim() || els.searchComposerInput.value.trim()) {
+        runSearch();
+      }
       await pushEntriesToCloudIfLoggedIn();
     }
 
@@ -1139,7 +1301,10 @@
                   <strong>${escapeHtml(item.song)}</strong>
                   <span class="detail-sub"> ／ 作曲者：${escapeHtml(item.composer)} ／ 楽譜：${escapeHtml(item.book)}（${escapeHtml(item.page)}ページ）</span>
                 </div>
-                <button type="button" class="btn-danger-ghost" data-delete-id="${escapeHtml(item.id)}">削除</button>
+                <div class="row-actions">
+                  <button type="button" class="btn-edit-ghost" data-edit-id="${escapeHtml(item.id)}">修正</button>
+                  <button type="button" class="btn-danger-ghost" data-delete-id="${escapeHtml(item.id)}">削除</button>
+                </div>
               </div>
             `
             )
@@ -1206,6 +1371,13 @@
     }
 
     els.listContainer.addEventListener("click", (e) => {
+      const editBtn = e.target.closest("[data-edit-id]");
+      if (editBtn) {
+        e.stopPropagation();
+        openEditModal(editBtn.dataset.editId);
+        return;
+      }
+
       const delBtn = e.target.closest("[data-delete-id]");
       if (delBtn) {
         e.stopPropagation();
@@ -1245,14 +1417,13 @@
       btn.addEventListener("click", () => switchTab(btn.dataset.tab));
     });
 
-    // 改行や余計な文字が混ざっても安全に項目を抜き出す
     function extractConfigSafe(rawText) {
       const text = String(rawText || "");
       const pick = (key) => {
         const m = text.match(new RegExp(`${key}\\s*[:=]\\s*["']([^"']+)["']`));
         return m ? m[1].replace(/\s+/g, "") : "";
       };
-      const cfg = {
+      return {
         apiKey: pick("apiKey") || DEFAULT_FIREBASE_CONFIG.apiKey,
         authDomain: pick("authDomain") || DEFAULT_FIREBASE_CONFIG.authDomain,
         projectId: pick("projectId") || DEFAULT_FIREBASE_CONFIG.projectId,
@@ -1261,7 +1432,6 @@
         appId: pick("appId") || DEFAULT_FIREBASE_CONFIG.appId,
         measurementId: pick("measurementId") || DEFAULT_FIREBASE_CONFIG.measurementId
       };
-      return cfg;
     }
 
     function getActiveFirebaseConfig() {
