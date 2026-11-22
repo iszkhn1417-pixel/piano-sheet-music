@@ -159,6 +159,28 @@
       margin-bottom: 6px;
     }
 
+    .checkbox-row {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 10px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 11px;
+      background: var(--surface-alt);
+      cursor: pointer;
+      font-size: 14.5px;
+      font-weight: 700;
+      user-select: none;
+    }
+
+    .checkbox-row input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+      cursor: pointer;
+      margin: 0;
+    }
+
     input[type="text"],
     input[type="number"],
     textarea {
@@ -181,6 +203,7 @@
     }
 
     .book-suggestions,
+    .song-suggestions,
     .composer-suggestions {
       margin-top: 8px;
       display: flex;
@@ -188,6 +211,7 @@
       gap: 7px;
     }
 
+    .song-suggestions:empty,
     .composer-suggestions:empty {
       display: none;
     }
@@ -219,6 +243,46 @@
 
     .chip.active,
     .chip.selected {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .filter-label {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--muted);
+      margin-right: 2px;
+    }
+
+    .filter-btn {
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      color: var(--text);
+      padding: 6px 13px;
+      border-radius: 999px;
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+
+    .filter-btn:hover {
+      border-color: var(--primary);
+      background: var(--primary-soft);
+      color: var(--primary);
+    }
+
+    .filter-btn.active {
       border-color: var(--primary);
       background: var(--primary);
       color: #fff;
@@ -361,6 +425,13 @@
       color: var(--primary);
     }
 
+    .result-type {
+      margin-top: 4px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
     .maybe-section {
       margin-top: 18px;
       padding-top: 16px;
@@ -397,7 +468,7 @@
       padding: 5px;
       border-radius: 12px;
       border: 1px solid var(--border);
-      margin-bottom: 16px;
+      margin-bottom: 12px;
     }
 
     .subtab-btn {
@@ -658,24 +729,32 @@
         <form id="registerForm" novalidate>
           <div class="field">
             <label class="field-label" for="bookInput">楽譜の名前</label>
-            <input type="text" id="bookInput" lang="ja" inputmode="text" placeholder="例：ブルクミュラー25の練習曲" autocomplete="off" />
+            <input type="text" id="bookInput" lang="ja" placeholder="例：ブルクミュラー25の練習曲" autocomplete="off" />
             <div class="book-suggestions" id="bookSuggestions"></div>
           </div>
 
           <div class="field">
             <label class="field-label" for="songInput">曲名</label>
-            <input type="text" id="songInput" lang="ja" inputmode="text" placeholder="例：アラベスク" autocomplete="off" />
+            <input type="text" id="songInput" lang="ja" placeholder="例：アラベスク" autocomplete="off" />
+            <div class="song-suggestions" id="songSuggestions" role="listbox" aria-label="曲名の候補"></div>
           </div>
 
           <div class="field">
             <label class="field-label" for="composerInput">作曲者</label>
-            <input type="text" id="composerInput" lang="ja" inputmode="text" placeholder="例：ブルクミュラー" autocomplete="off" />
+            <input type="text" id="composerInput" lang="ja" placeholder="例：ブルクミュラー" autocomplete="off" />
             <div class="composer-suggestions" id="composerSuggestions" role="listbox" aria-label="作曲者の候補"></div>
           </div>
 
           <div class="field">
             <label class="field-label" for="pageInput">ページ（数字のみ）</label>
-            <input type="text" id="pageInput" inputmode="numeric" placeholder="例：12" autocomplete="off" />
+            <input type="text" id="pageInput" placeholder="例：12" autocomplete="off" />
+          </div>
+
+          <div class="field">
+            <label class="checkbox-row" for="duetCheckbox">
+              <input type="checkbox" id="duetCheckbox" />
+              <span>連弾</span>
+            </label>
           </div>
 
           <button type="submit" class="btn btn-primary">登録する</button>
@@ -690,14 +769,21 @@
         <h2 class="card-title">曲名・作曲者から検索</h2>
         <p class="card-sub">どちらか一方だけでも、両方組み合わせても検索できます。</p>
 
+        <div class="filter-bar" role="group" aria-label="検索の楽譜タイプ絞り込み">
+          <span class="filter-label">楽譜タイプ：</span>
+          <button type="button" class="filter-btn active" data-search-type="all">すべて (0)</button>
+          <button type="button" class="filter-btn" data-search-type="solo">ソロ (0)</button>
+          <button type="button" class="filter-btn" data-search-type="duet">連弾 (0)</button>
+        </div>
+
         <div class="search-grid">
           <div class="field" style="margin-bottom:0;">
             <label class="field-label" for="searchSongInput">曲名</label>
-            <input type="text" id="searchSongInput" lang="ja" inputmode="text" placeholder="例：子犬のワルツ" autocomplete="off" />
+            <input type="text" id="searchSongInput" lang="ja" placeholder="例：子犬のワルツ" autocomplete="off" />
           </div>
           <div class="field" style="margin-bottom:0;">
             <label class="field-label" for="searchComposerInput">作曲者</label>
-            <input type="text" id="searchComposerInput" lang="ja" inputmode="text" placeholder="例：ショパン" autocomplete="off" />
+            <input type="text" id="searchComposerInput" lang="ja" placeholder="例：ショパン" autocomplete="off" />
           </div>
         </div>
 
@@ -725,6 +811,13 @@
           <button type="button" class="subtab-btn active" data-subtab="songs">曲名一覧</button>
           <button type="button" class="subtab-btn" data-subtab="composers">作曲者一覧</button>
           <button type="button" class="subtab-btn" data-subtab="books">楽譜一覧</button>
+        </div>
+
+        <div class="filter-bar" role="group" aria-label="一覧の楽譜タイプ絞り込み">
+          <span class="filter-label">楽譜タイプ：</span>
+          <button type="button" class="filter-btn active" data-list-type="all">すべて (0)</button>
+          <button type="button" class="filter-btn" data-list-type="solo">ソロ (0)</button>
+          <button type="button" class="filter-btn" data-list-type="duet">連弾 (0)</button>
         </div>
 
         <div id="listContainer"></div>
@@ -763,22 +856,29 @@
 
         <div class="field">
           <label class="field-label" for="editBookInput">楽譜の名前</label>
-          <input type="text" id="editBookInput" lang="ja" inputmode="text" autocomplete="off" />
+          <input type="text" id="editBookInput" lang="ja" autocomplete="off" />
         </div>
 
         <div class="field">
           <label class="field-label" for="editSongInput">曲名</label>
-          <input type="text" id="editSongInput" lang="ja" inputmode="text" autocomplete="off" />
+          <input type="text" id="editSongInput" lang="ja" autocomplete="off" />
         </div>
 
         <div class="field">
           <label class="field-label" for="editComposerInput">作曲者</label>
-          <input type="text" id="editComposerInput" lang="ja" inputmode="text" autocomplete="off" />
+          <input type="text" id="editComposerInput" lang="ja" autocomplete="off" />
         </div>
 
         <div class="field">
           <label class="field-label" for="editPageInput">ページ（数字のみ）</label>
-          <input type="text" id="editPageInput" inputmode="numeric" autocomplete="off" />
+          <input type="text" id="editPageInput" autocomplete="off" />
+        </div>
+
+        <div class="field">
+          <label class="checkbox-row" for="editDuetCheckbox">
+            <input type="checkbox" id="editDuetCheckbox" />
+            <span>連弾</span>
+          </label>
         </div>
 
         <div class="modal-actions">
@@ -859,7 +959,12 @@
     let entries = loadLocalEntries();
     let currentTab = "register";
     let currentSubtab = "songs";
+    let currentListTypeFilter = "all";
+    let currentSearchTypeFilter = "all";
     const expandedKeys = new Set();
+
+    let currentSongMatches = [];
+    let selectedSongIndex = -1;
 
     let currentComposerMatches = [];
     let selectedComposerIndex = -1;
@@ -877,7 +982,9 @@
       songInput: document.getElementById("songInput"),
       composerInput: document.getElementById("composerInput"),
       pageInput: document.getElementById("pageInput"),
+      duetCheckbox: document.getElementById("duetCheckbox"),
       bookSuggestions: document.getElementById("bookSuggestions"),
+      songSuggestions: document.getElementById("songSuggestions"),
       composerSuggestions: document.getElementById("composerSuggestions"),
       registerToast: document.getElementById("registerToast"),
       searchSongInput: document.getElementById("searchSongInput"),
@@ -897,6 +1004,7 @@
       editSongInput: document.getElementById("editSongInput"),
       editComposerInput: document.getElementById("editComposerInput"),
       editPageInput: document.getElementById("editPageInput"),
+      editDuetCheckbox: document.getElementById("editDuetCheckbox"),
       editToast: document.getElementById("editToast"),
       openSyncModalBtn: document.getElementById("openSyncModalBtn"),
       closeSyncModalBtn: document.getElementById("closeSyncModalBtn"),
@@ -929,6 +1037,62 @@
         localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
       } catch (err) {
         console.error("Local save error:", err);
+      }
+    }
+
+    function getEntryType(item) {
+      return item?.type === "duet" ? "duet" : "solo";
+    }
+
+    function getEntryTypeLabel(item) {
+      return getEntryType(item) === "duet" ? "連弾" : "ソロ";
+    }
+
+    function matchesTypeFilter(item, filterType) {
+      if (!filterType || filterType === "all") return true;
+      return getEntryType(item) === filterType;
+    }
+
+    function countByType(list) {
+      let solo = 0;
+      let duet = 0;
+      for (const item of list) {
+        if (getEntryType(item) === "duet") {
+          duet += 1;
+        } else {
+          solo += 1;
+        }
+      }
+      return {
+        all: solo + duet,
+        solo,
+        duet
+      };
+    }
+
+    function updateFilterCountLabels(selector, counts) {
+      document.querySelectorAll(selector).forEach((btn) => {
+        const key = btn.dataset.listType || btn.dataset.searchType;
+        if (key === "all") {
+          btn.textContent = `すべて (${counts.all})`;
+        } else if (key === "solo") {
+          btn.textContent = `ソロ (${counts.solo})`;
+        } else if (key === "duet") {
+          btn.textContent = `連弾 (${counts.duet})`;
+        }
+      });
+    }
+
+    function refreshAllFilterCounts() {
+      updateFilterCountLabels("[data-list-type]", countByType(entries));
+
+      const qSong = els.searchSongInput.value.trim();
+      const qComposer = els.searchComposerInput.value.trim();
+      if (!qSong && !qComposer) {
+        updateFilterCountLabels("[data-search-type]", countByType(entries));
+      } else {
+        const { exactMatches } = evaluateSearch(qSong, qComposer);
+        updateFilterCountLabels("[data-search-type]", countByType(exactMatches));
       }
     }
 
@@ -1029,6 +1193,19 @@
       return Array.from(map.values()).sort(compareJa);
     }
 
+    function getUniqueSongs() {
+      const map = new Map();
+      for (const item of entries) {
+        const s = (item.song || "").trim();
+        if (!s) continue;
+        const key = normalizeForSearch(s);
+        if (!map.has(key)) {
+          map.set(key, s);
+        }
+      }
+      return Array.from(map.values()).sort(compareJa);
+    }
+
     function getUniqueComposers() {
       const map = new Map();
       for (const item of entries) {
@@ -1066,6 +1243,107 @@
 
     els.bookInput.addEventListener("input", renderBookSuggestions);
 
+    // 曲名の入力サジェスト
+    function clearSongSuggestions() {
+      currentSongMatches = [];
+      selectedSongIndex = -1;
+      els.songSuggestions.innerHTML = "";
+    }
+
+    function renderSongSuggestions() {
+      const rawVal = els.songInput.value.trim();
+      if (!rawVal) {
+        clearSongSuggestions();
+        return;
+      }
+
+      const normQuery = normalizeForSearch(rawVal);
+      if (!normQuery) {
+        clearSongSuggestions();
+        return;
+      }
+
+      const allSongs = getUniqueSongs();
+      const prefixMatches = [];
+      const partialMatches = [];
+
+      for (const songName of allSongs) {
+        if (songName === rawVal) {
+          clearSongSuggestions();
+          return;
+        }
+        const normSong = normalizeForSearch(songName);
+        if (normSong.startsWith(normQuery)) {
+          prefixMatches.push(songName);
+        } else if (normSong.includes(normQuery)) {
+          partialMatches.push(songName);
+        }
+      }
+
+      const combined = [...prefixMatches, ...partialMatches];
+      if (combined.length === 0) {
+        clearSongSuggestions();
+        return;
+      }
+
+      currentSongMatches = combined;
+      if (selectedSongIndex >= combined.length) {
+        selectedSongIndex = -1;
+      }
+
+      const chipsHtml = combined
+        .map((songName, idx) => {
+          const selectedClass = idx === selectedSongIndex ? "selected" : "";
+          return `<button type="button" class="chip ${selectedClass}" role="option" aria-selected="${idx === selectedSongIndex}" data-song="${escapeHtml(songName)}" data-index="${idx}">${escapeHtml(songName)}</button>`;
+        })
+        .join("");
+
+      els.songSuggestions.innerHTML = `
+        <div class="suggestion-hint">曲名候補（タップ または ↓↑キーで選択・Enterで確定）</div>
+        ${chipsHtml}
+      `;
+    }
+
+    function applySongCandidate(value) {
+      els.songInput.value = value;
+      clearSongSuggestions();
+    }
+
+    els.songInput.addEventListener("input", () => {
+      selectedSongIndex = -1;
+      renderSongSuggestions();
+    });
+
+    els.songInput.addEventListener("keydown", (e) => {
+      if (currentSongMatches.length === 0) return;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        selectedSongIndex =
+          (selectedSongIndex + 1) % currentSongMatches.length;
+        renderSongSuggestions();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        selectedSongIndex =
+          selectedSongIndex <= 0
+            ? currentSongMatches.length - 1
+            : selectedSongIndex - 1;
+        renderSongSuggestions();
+      } else if (e.key === "Enter" && selectedSongIndex >= 0) {
+        e.preventDefault();
+        applySongCandidate(currentSongMatches[selectedSongIndex]);
+      } else if (e.key === "Escape") {
+        clearSongSuggestions();
+      }
+    });
+
+    els.songSuggestions.addEventListener("click", (e) => {
+      const chip = e.target.closest(".chip");
+      if (!chip) return;
+      applySongCandidate(chip.dataset.song || "");
+    });
+
+    // 作曲者の入力サジェスト
     function clearComposerSuggestions() {
       currentComposerMatches = [];
       selectedComposerIndex = -1;
@@ -1167,6 +1445,12 @@
 
     document.addEventListener("click", (e) => {
       if (
+        !e.target.closest("#songInput") &&
+        !e.target.closest("#songSuggestions")
+      ) {
+        clearSongSuggestions();
+      }
+      if (
         !e.target.closest("#composerInput") &&
         !e.target.closest("#composerSuggestions")
       ) {
@@ -1188,6 +1472,7 @@
       const song = els.songInput.value.trim();
       const composer = els.composerInput.value.trim();
       const pageNum = parsePageNumber(els.pageInput.value);
+      const entryType = els.duetCheckbox.checked ? "duet" : "solo";
 
       if (!book) {
         showToast(els.registerToast, "楽譜の名前を入力してください。", "error");
@@ -1216,35 +1501,28 @@
         song,
         composer,
         page: pageNum,
+        type: entryType,
         updatedAt: Date.now()
       };
 
       entries = [newItem, ...entries];
       saveLocalEntries(entries);
       renderBookSuggestions();
+      clearSongSuggestions();
       clearComposerSuggestions();
       renderList();
+      refreshAllFilterCounts();
 
       els.songInput.value = "";
       els.composerInput.value = "";
       els.pageInput.value = "";
       els.songInput.focus();
 
-      showToast(els.registerToast, `「${song}」を登録しました！`);
+      showToast(els.registerToast, `「${song}」（${entryType === "duet" ? "連弾" : "ソロ"}）を登録しました！`);
       await pushEntriesToCloudIfLoggedIn();
     });
 
-    function runSearch() {
-      const qSong = els.searchSongInput.value.trim();
-      const qComposer = els.searchComposerInput.value.trim();
-
-      if (!qSong && !qComposer) {
-        els.searchHint.textContent = "曲名または作曲者を入力して「検索する」を押してください。";
-        els.exactResults.innerHTML = "";
-        els.maybeResults.innerHTML = "";
-        return;
-      }
-
+    function evaluateSearch(qSong, qComposer) {
       const nSong = normalizeForSearch(qSong);
       const nComposer = normalizeForSearch(qComposer);
 
@@ -1290,19 +1568,53 @@
       }
 
       maybeMatches.sort((a, b) => b.score - a.score);
+      return { exactMatches, maybeMatches };
+    }
 
+    function runSearch() {
+      const qSong = els.searchSongInput.value.trim();
+      const qComposer = els.searchComposerInput.value.trim();
+      const typeLabel =
+        currentSearchTypeFilter === "solo"
+          ? "ソロ"
+          : currentSearchTypeFilter === "duet"
+            ? "連弾"
+            : "";
+
+      if (!qSong && !qComposer) {
+        updateFilterCountLabels("[data-search-type]", countByType(entries));
+        els.searchHint.textContent = typeLabel
+          ? `楽譜タイプ「${typeLabel}」で絞り込み中。曲名または作曲者を入力して「検索する」を押してください。`
+          : "曲名または作曲者を入力して「検索する」を押してください。";
+        els.exactResults.innerHTML = "";
+        els.maybeResults.innerHTML = "";
+        return;
+      }
+
+      const { exactMatches, maybeMatches } = evaluateSearch(qSong, qComposer);
+      updateFilterCountLabels("[data-search-type]", countByType(exactMatches));
+
+      const filteredExact = exactMatches.filter((item) =>
+        matchesTypeFilter(item, currentSearchTypeFilter)
+      );
+      const filteredMaybe = maybeMatches.filter(({ item }) =>
+        matchesTypeFilter(item, currentSearchTypeFilter)
+      );
+
+      const filterSuffix = typeLabel ? `（${typeLabel}）` : "";
       els.searchHint.textContent =
-        exactMatches.length > 0
-          ? `${exactMatches.length}件ヒットしました。`
-          : "完全・部分一致する項目はありませんでした。";
+        filteredExact.length > 0
+          ? `${filteredExact.length}件ヒットしました${filterSuffix}。`
+          : `完全・部分一致する項目はありませんでした${filterSuffix}。`;
 
-      if (exactMatches.length > 0) {
-        els.exactResults.innerHTML = exactMatches
+      if (filteredExact.length > 0) {
+        els.exactResults.innerHTML = filteredExact
           .map(
             (item) => `
             <div class="result-box">
               <div class="result-headline">${escapeHtml(item.song)} ${escapeHtml(item.composer)}がヒットしました</div>
               <div class="result-location">${escapeHtml(item.book)}の${escapeHtml(item.page)}ページです。</div>
+              <div class="result-type">楽譜タイプ：${escapeHtml(getEntryTypeLabel(item))}</div>
             </div>
           `
           )
@@ -1312,17 +1624,18 @@
           `<div class="empty-state" style="padding:16px 8px;">一致する楽譜データが見つかりませんでした。</div>`;
       }
 
-      if (maybeMatches.length > 0) {
+      if (filteredMaybe.length > 0) {
         els.maybeResults.innerHTML = `
           <div class="maybe-section">
             <h4 class="maybe-title">💡 もしかして？</h4>
-            ${maybeMatches
+            ${filteredMaybe
               .slice(0, 6)
               .map(
                 ({ item }) => `
                 <div class="maybe-card">
                   <div class="result-headline">${escapeHtml(item.song)} ${escapeHtml(item.composer)}</div>
                   <div class="result-location">${escapeHtml(item.book)}の${escapeHtml(item.page)}ページです。</div>
+                  <div class="result-type">楽譜タイプ：${escapeHtml(getEntryTypeLabel(item))}</div>
                 </div>
               `
               )
@@ -1334,7 +1647,27 @@
       }
     }
 
+    document.querySelectorAll("[data-search-type]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        currentSearchTypeFilter = btn.dataset.searchType;
+        document.querySelectorAll("[data-search-type]").forEach((b) => {
+          b.classList.toggle("active", b.dataset.searchType === currentSearchTypeFilter);
+        });
+        runSearch();
+      });
+    });
+
     els.searchBtn.addEventListener("click", runSearch);
+    els.searchSongInput.addEventListener("input", () => {
+      if (!els.searchSongInput.value.trim() && !els.searchComposerInput.value.trim()) {
+        updateFilterCountLabels("[data-search-type]", countByType(entries));
+      }
+    });
+    els.searchComposerInput.addEventListener("input", () => {
+      if (!els.searchSongInput.value.trim() && !els.searchComposerInput.value.trim()) {
+        updateFilterCountLabels("[data-search-type]", countByType(entries));
+      }
+    });
     els.searchSongInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") runSearch();
     });
@@ -1344,6 +1677,11 @@
     els.clearSearchBtn.addEventListener("click", () => {
       els.searchSongInput.value = "";
       els.searchComposerInput.value = "";
+      currentSearchTypeFilter = "all";
+      document.querySelectorAll("[data-search-type]").forEach((b) => {
+        b.classList.toggle("active", b.dataset.searchType === "all");
+      });
+      updateFilterCountLabels("[data-search-type]", countByType(entries));
       els.searchHint.textContent = "曲名または作曲者を入力して「検索する」を押してください。";
       els.exactResults.innerHTML = "";
       els.maybeResults.innerHTML = "";
@@ -1358,6 +1696,7 @@
       els.editSongInput.value = target.song || "";
       els.editComposerInput.value = target.composer || "";
       els.editPageInput.value = target.page ?? "";
+      els.editDuetCheckbox.checked = getEntryType(target) === "duet";
       els.editToast.className = "toast";
       els.editToast.textContent = "";
 
@@ -1383,6 +1722,7 @@
       const song = els.editSongInput.value.trim();
       const composer = els.editComposerInput.value.trim();
       const pageNum = parsePageNumber(els.editPageInput.value);
+      const entryType = els.editDuetCheckbox.checked ? "duet" : "solo";
 
       if (!book) {
         showToast(els.editToast, "楽譜の名前を入力してください。", "error");
@@ -1417,12 +1757,14 @@
         song,
         composer,
         page: pageNum,
+        type: entryType,
         updatedAt: Date.now()
       };
 
       saveLocalEntries(entries);
       renderBookSuggestions();
       renderList();
+      refreshAllFilterCounts();
       if (els.searchSongInput.value.trim() || els.searchComposerInput.value.trim()) {
         runSearch();
       }
@@ -1440,11 +1782,22 @@
       });
     });
 
+    document.querySelectorAll("[data-list-type]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        currentListTypeFilter = btn.dataset.listType;
+        document.querySelectorAll("[data-list-type]").forEach((b) => {
+          b.classList.toggle("active", b.dataset.listType === currentListTypeFilter);
+        });
+        renderList();
+      });
+    });
+
     async function deleteEntry(id) {
       entries = entries.filter((item) => item.id !== id);
       saveLocalEntries(entries);
       renderBookSuggestions();
       renderList();
+      refreshAllFilterCounts();
       if (els.searchSongInput.value.trim() || els.searchComposerInput.value.trim()) {
         runSearch();
       }
@@ -1454,7 +1807,6 @@
     function sortItemsForSubtab(items, subtab) {
       const copied = [...items];
       if (subtab === "songs") {
-        // 曲名一覧の展開後：楽譜名のあいうえお順 → 同じ楽譜ならページ順 → 曲名あいうえお順
         return copied.sort((a, b) => {
           const byBook = compareJa(a.book, b.book);
           if (byBook !== 0) return byBook;
@@ -1462,7 +1814,6 @@
         });
       }
       if (subtab === "composers") {
-        // 作曲者一覧の展開後：曲名のあいうえお順 → 楽譜名あいうえお順 → ページ順
         return copied.sort((a, b) => {
           const bySong = compareJa(a.song, b.song);
           if (bySong !== 0) return bySong;
@@ -1471,7 +1822,6 @@
           return comparePage(a, b);
         });
       }
-      // 楽譜一覧の展開後：ページ順（1〜）→ 同じページなら曲名あいうえお順
       return copied.sort((a, b) => {
         const byPage = comparePage(a, b);
         if (byPage !== 0) return byPage;
@@ -1481,7 +1831,11 @@
 
     function renderAccordionGroup(groups, typePrefix, badgeSuffix) {
       if (groups.length === 0) {
-        return `<div class="empty-state">まだ登録がありません。「登録」タブから追加してください。</div>`;
+        const msg =
+          currentListTypeFilter === "all"
+            ? "まだ登録がありません。「登録」タブから追加してください。"
+            : `該当する${currentListTypeFilter === "duet" ? "連弾" : "ソロ"}のデータはありません。`;
+        return `<div class="empty-state">${msg}</div>`;
       }
 
       return groups
@@ -1495,7 +1849,7 @@
               <div class="detail-row">
                 <div class="detail-main">
                   <strong>${escapeHtml(item.song)}</strong>
-                  <span class="detail-sub"> ／ 作曲者：${escapeHtml(item.composer)} ／ 楽譜：${escapeHtml(item.book)}（${escapeHtml(item.page)}ページ）</span>
+                  <span class="detail-sub"> ／ 作曲者：${escapeHtml(item.composer)} ／ 楽譜：${escapeHtml(item.book)}（${escapeHtml(item.page)}ページ） ／ 楽譜タイプ：${escapeHtml(getEntryTypeLabel(item))}</span>
                 </div>
                 <div class="row-actions">
                   <button type="button" class="btn-edit-ghost" data-edit-id="${escapeHtml(item.id)}">修正</button>
@@ -1525,14 +1879,24 @@
     }
 
     function renderList() {
-      if (entries.length === 0) {
-        els.listContainer.innerHTML = `<div class="empty-state">まだ登録がありません。「登録」タブから楽譜と曲を登録しましょう。</div>`;
+      updateFilterCountLabels("[data-list-type]", countByType(entries));
+
+      const filteredEntries = entries.filter((item) =>
+        matchesTypeFilter(item, currentListTypeFilter)
+      );
+
+      if (filteredEntries.length === 0) {
+        const msg =
+          entries.length === 0
+            ? "まだ登録がありません。「登録」タブから楽譜と曲を登録しましょう。"
+            : `該当する${currentListTypeFilter === "duet" ? "連弾" : "ソロ"}のデータはありません。`;
+        els.listContainer.innerHTML = `<div class="empty-state">${msg}</div>`;
         return;
       }
 
       if (currentSubtab === "songs") {
         const map = new Map();
-        for (const item of entries) {
+        for (const item of filteredEntries) {
           const key = item.song;
           if (!map.has(key)) map.set(key, { title: item.song, items: [] });
           map.get(key).items.push(item);
@@ -1541,7 +1905,7 @@
         els.listContainer.innerHTML = renderAccordionGroup(groups, "song", "件");
       } else if (currentSubtab === "composers") {
         const map = new Map();
-        for (const item of entries) {
+        for (const item of filteredEntries) {
           const key = item.composer;
           if (!map.has(key)) map.set(key, { title: item.composer, items: [] });
           map.get(key).items.push(item);
@@ -1550,7 +1914,7 @@
         els.listContainer.innerHTML = renderAccordionGroup(groups, "composer", "曲");
       } else if (currentSubtab === "books") {
         const map = new Map();
-        for (const item of entries) {
+        for (const item of filteredEntries) {
           const key = item.book;
           if (!map.has(key)) map.set(key, { title: item.book, items: [] });
           map.get(key).items.push(item);
@@ -1599,6 +1963,7 @@
       document.querySelectorAll(".nav-btn").forEach((btn) => {
         btn.classList.toggle("active", btn.dataset.tab === tabName);
       });
+      refreshAllFilterCounts();
       if (tabName === "list") renderList();
       if (tabName === "register") renderBookSuggestions();
     }
@@ -1697,6 +2062,7 @@
           isApplyingRemote = false;
           renderBookSuggestions();
           renderList();
+          refreshAllFilterCounts();
           await setDoc(ref, { entries, updatedAt: Date.now() }, { merge: true });
         })
         .catch((err) => console.error("Initial cloud fetch error:", err));
@@ -1712,6 +2078,7 @@
           isApplyingRemote = false;
           renderBookSuggestions();
           renderList();
+          refreshAllFilterCounts();
         }
       });
     }
@@ -1819,6 +2186,7 @@
 
     renderBookSuggestions();
     renderList();
+    refreshAllFilterCounts();
     initFirebaseFromStorage();
   </script>
 </body>
