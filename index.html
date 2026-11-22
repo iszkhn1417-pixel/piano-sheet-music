@@ -180,11 +180,23 @@
       box-shadow: 0 0 0 3px rgba(45, 90, 71, 0.12);
     }
 
-    .book-suggestions {
+    .book-suggestions,
+    .composer-suggestions {
       margin-top: 8px;
       display: flex;
       flex-wrap: wrap;
       gap: 7px;
+    }
+
+    .composer-suggestions:empty {
+      display: none;
+    }
+
+    .suggestion-hint {
+      width: 100%;
+      font-size: 11.5px;
+      color: var(--muted);
+      margin-bottom: 2px;
     }
 
     .chip {
@@ -196,6 +208,7 @@
       font-size: 12.5px;
       cursor: pointer;
       transition: all 0.15s;
+      font-family: inherit;
     }
 
     .chip:hover {
@@ -204,7 +217,8 @@
       color: var(--primary);
     }
 
-    .chip.active {
+    .chip.active,
+    .chip.selected {
       border-color: var(--primary);
       background: var(--primary);
       color: #fff;
@@ -648,23 +662,24 @@
         <form id="registerForm" novalidate>
           <div class="field">
             <label class="field-label" for="bookInput">楽譜の名前</label>
-            <input type="text" id="bookInput" placeholder="例：ブルクミュラー25の練習曲" autocomplete="off" />
+            <input type="text" id="bookInput" lang="ja" inputmode="text" placeholder="例：ブルクミュラー25の練習曲" autocomplete="off" />
             <div class="book-suggestions" id="bookSuggestions"></div>
           </div>
 
           <div class="field">
             <label class="field-label" for="songInput">曲名</label>
-            <input type="text" id="songInput" placeholder="例：アラベスク" autocomplete="off" />
+            <input type="text" id="songInput" lang="ja" inputmode="text" placeholder="例：アラベスク" autocomplete="off" />
           </div>
 
           <div class="field">
             <label class="field-label" for="composerInput">作曲者</label>
-            <input type="text" id="composerInput" placeholder="例：ブルクミュラー" autocomplete="off" />
+            <input type="text" id="composerInput" lang="ja" inputmode="text" placeholder="例：ブルクミュラー" autocomplete="off" />
+            <div class="composer-suggestions" id="composerSuggestions" role="listbox" aria-label="作曲者の候補"></div>
           </div>
 
           <div class="field">
             <label class="field-label" for="pageInput">ページ（数字のみ）</label>
-            <input type="number" id="pageInput" min="1" step="1" inputmode="numeric" placeholder="例：12" />
+            <input type="text" id="pageInput" inputmode="numeric" pattern="[0-9]*" placeholder="例：12" autocomplete="off" />
           </div>
 
           <button type="submit" class="btn btn-primary">登録する</button>
@@ -682,11 +697,11 @@
         <div class="search-grid">
           <div class="field" style="margin-bottom:0;">
             <label class="field-label" for="searchSongInput">曲名</label>
-            <input type="text" id="searchSongInput" placeholder="例：子犬のワルツ" autocomplete="off" />
+            <input type="text" id="searchSongInput" lang="ja" inputmode="text" placeholder="例：子犬のワルツ" autocomplete="off" />
           </div>
           <div class="field" style="margin-bottom:0;">
             <label class="field-label" for="searchComposerInput">作曲者</label>
-            <input type="text" id="searchComposerInput" placeholder="例：ショパン" autocomplete="off" />
+            <input type="text" id="searchComposerInput" lang="ja" inputmode="text" placeholder="例：ショパン" autocomplete="off" />
           </div>
         </div>
 
@@ -752,22 +767,22 @@
 
         <div class="field">
           <label class="field-label" for="editBookInput">楽譜の名前</label>
-          <input type="text" id="editBookInput" autocomplete="off" />
+          <input type="text" id="editBookInput" lang="ja" inputmode="text" autocomplete="off" />
         </div>
 
         <div class="field">
           <label class="field-label" for="editSongInput">曲名</label>
-          <input type="text" id="editSongInput" autocomplete="off" />
+          <input type="text" id="editSongInput" lang="ja" inputmode="text" autocomplete="off" />
         </div>
 
         <div class="field">
           <label class="field-label" for="editComposerInput">作曲者</label>
-          <input type="text" id="editComposerInput" autocomplete="off" />
+          <input type="text" id="editComposerInput" lang="ja" inputmode="text" autocomplete="off" />
         </div>
 
         <div class="field">
           <label class="field-label" for="editPageInput">ページ（数字のみ）</label>
-          <input type="number" id="editPageInput" min="1" step="1" inputmode="numeric" />
+          <input type="text" id="editPageInput" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
         </div>
 
         <div class="modal-actions">
@@ -850,6 +865,10 @@
     let currentSubtab = "songs";
     const expandedKeys = new Set();
 
+    // 作曲者候補のキーボード選択用状態
+    let currentComposerMatches = [];
+    let selectedComposerIndex = -1;
+
     let fbApp = null;
     let fbAuth = null;
     let fbDb = null;
@@ -864,6 +883,7 @@
       composerInput: document.getElementById("composerInput"),
       pageInput: document.getElementById("pageInput"),
       bookSuggestions: document.getElementById("bookSuggestions"),
+      composerSuggestions: document.getElementById("composerSuggestions"),
       registerToast: document.getElementById("registerToast"),
       searchSongInput: document.getElementById("searchSongInput"),
       searchComposerInput: document.getElementById("searchComposerInput"),
@@ -930,11 +950,19 @@
         .replace(/"/g, "&quot;");
     }
 
+    // ひらがな→カタカナ変換（検索・候補一致用）
+    function hiraToKata(str) {
+      return str.replace(/[\u3041-\u3096]/g, (ch) =>
+        String.fromCharCode(ch.charCodeAt(0) + 0x60)
+      );
+    }
+
     function normalizeForSearch(str) {
-      return String(str ?? "")
+      const normalized = String(str ?? "")
         .toLowerCase()
         .normalize("NFKC")
         .replace(/[\s ・･ー‐‑–—−〜～、。,.!！?？「」『』()（）【】［］]/g, "");
+      return hiraToKata(normalized);
     }
 
     function levenshtein(a, b) {
@@ -986,6 +1014,19 @@
       return Array.from(map.values());
     }
 
+    function getUniqueComposers() {
+      const map = new Map();
+      for (const item of entries) {
+        const c = (item.composer || "").trim();
+        if (!c) continue;
+        const key = normalizeForSearch(c);
+        if (!map.has(key)) {
+          map.set(key, c);
+        }
+      }
+      return Array.from(map.values());
+    }
+
     function renderBookSuggestions() {
       const books = getUniqueBooks();
       const currentVal = els.bookInput.value.trim();
@@ -1005,19 +1046,137 @@
       const chip = e.target.closest(".chip");
       if (!chip) return;
       els.bookInput.value = chip.dataset.book || "";
-      els.bookInput.focus();
       renderBookSuggestions();
     });
 
     els.bookInput.addEventListener("input", renderBookSuggestions);
+
+    // 作曲者の入力サジェスト（入力があるときのみ表示、先頭一致・部分一致どちらも対象）
+    function clearComposerSuggestions() {
+      currentComposerMatches = [];
+      selectedComposerIndex = -1;
+      els.composerSuggestions.innerHTML = "";
+    }
+
+    function renderComposerSuggestions() {
+      const rawVal = els.composerInput.value.trim();
+      if (!rawVal) {
+        clearComposerSuggestions();
+        return;
+      }
+
+      const normQuery = normalizeForSearch(rawVal);
+      if (!normQuery) {
+        clearComposerSuggestions();
+        return;
+      }
+
+      const allComposers = getUniqueComposers();
+      const prefixMatches = [];
+      const partialMatches = [];
+
+      for (const comp of allComposers) {
+        // すでに完全一致で入力済みなら候補を閉じる
+        if (comp === rawVal) {
+          clearComposerSuggestions();
+          return;
+        }
+        const normComp = normalizeForSearch(comp);
+        if (normComp.startsWith(normQuery)) {
+          prefixMatches.push(comp);
+        } else if (normComp.includes(normQuery)) {
+          partialMatches.push(comp);
+        }
+      }
+
+      const combined = [...prefixMatches, ...partialMatches];
+      if (combined.length === 0) {
+        clearComposerSuggestions();
+        return;
+      }
+
+      currentComposerMatches = combined;
+      if (selectedComposerIndex >= combined.length) {
+        selectedComposerIndex = -1;
+      }
+
+      const chipsHtml = combined
+        .map((comp, idx) => {
+          const selectedClass = idx === selectedComposerIndex ? "selected" : "";
+          return `<button type="button" class="chip ${selectedClass}" role="option" aria-selected="${idx === selectedComposerIndex}" data-composer="${escapeHtml(comp)}" data-index="${idx}">${escapeHtml(comp)}</button>`;
+        })
+        .join("");
+
+      els.composerSuggestions.innerHTML = `
+        <div class="suggestion-hint">候補（タップ または ↓↑キーで選択・Enterで確定）</div>
+        ${chipsHtml}
+      `;
+    }
+
+    function applyComposerCandidate(value) {
+      els.composerInput.value = value;
+      clearComposerSuggestions();
+    }
+
+    els.composerInput.addEventListener("input", () => {
+      selectedComposerIndex = -1;
+      renderComposerSuggestions();
+    });
+
+    els.composerInput.addEventListener("keydown", (e) => {
+      if (currentComposerMatches.length === 0) return;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        selectedComposerIndex =
+          (selectedComposerIndex + 1) % currentComposerMatches.length;
+        renderComposerSuggestions();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        selectedComposerIndex =
+          selectedComposerIndex <= 0
+            ? currentComposerMatches.length - 1
+            : selectedComposerIndex - 1;
+        renderComposerSuggestions();
+      } else if (e.key === "Enter" && selectedComposerIndex >= 0) {
+        e.preventDefault();
+        applyComposerCandidate(currentComposerMatches[selectedComposerIndex]);
+      } else if (e.key === "Escape") {
+        clearComposerSuggestions();
+      }
+    });
+
+    els.composerSuggestions.addEventListener("click", (e) => {
+      const chip = e.target.closest(".chip");
+      if (!chip) return;
+      applyComposerCandidate(chip.dataset.composer || "");
+    });
+
+    // フォーム外クリックで作曲者候補を閉じる
+    document.addEventListener("click", (e) => {
+      if (
+        !e.target.closest("#composerInput") &&
+        !e.target.closest("#composerSuggestions")
+      ) {
+        clearComposerSuggestions();
+      }
+    });
+
+    // 全角数字も半角数字に変換して受け付ける
+    function parsePageNumber(rawStr) {
+      const halfWidth = String(rawStr ?? "")
+        .trim()
+        .replace(/[０-９]/g, (s) => String.fromCharCode(s.charCodeAt(0) - 0xfee0));
+      if (!/^\d+$/.test(halfWidth)) return NaN;
+      return Number(halfWidth);
+    }
 
     els.registerForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       const book = els.bookInput.value.trim();
       const song = els.songInput.value.trim();
       const composer = els.composerInput.value.trim();
-      const pageRaw = els.pageInput.value.trim();
-      const pageNum = Number(pageRaw);
+      const pageNum = parsePageNumber(els.pageInput.value);
 
       if (!book) {
         showToast(els.registerToast, "楽譜の名前を入力してください。", "error");
@@ -1034,7 +1193,7 @@
         els.composerInput.focus();
         return;
       }
-      if (!pageRaw || !Number.isInteger(pageNum) || pageNum <= 0) {
+      if (!Number.isInteger(pageNum) || pageNum <= 0) {
         showToast(els.registerToast, "ページは1以上の数字で入力してください。", "error");
         els.pageInput.focus();
         return;
@@ -1052,12 +1211,17 @@
       entries = [newItem, ...entries];
       saveLocalEntries(entries);
       renderBookSuggestions();
+      clearComposerSuggestions();
       renderList();
 
       els.songInput.value = "";
       els.composerInput.value = "";
       els.pageInput.value = "";
-      els.songInput.focus();
+
+      // PCでIMEが英数固定のまま引き継がれないよう、強制focusせず自然なクリックで入力開始できるようにする
+      if (document.activeElement && typeof document.activeElement.blur === "function") {
+        document.activeElement.blur();
+      }
 
       showToast(els.registerToast, `「${song}」を登録しました！`);
       await pushEntriesToCloudIfLoggedIn();
@@ -1162,474 +1326,3 @@
         els.maybeResults.innerHTML = "";
       }
     }
-
-    els.searchBtn.addEventListener("click", runSearch);
-    els.searchSongInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") runSearch();
-    });
-    els.searchComposerInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") runSearch();
-    });
-    els.clearSearchBtn.addEventListener("click", () => {
-      els.searchSongInput.value = "";
-      els.searchComposerInput.value = "";
-      els.searchHint.textContent = "曲名または作曲者を入力して「検索する」を押してください。";
-      els.exactResults.innerHTML = "";
-      els.maybeResults.innerHTML = "";
-    });
-
-    // 修正モーダル操作
-    function openEditModal(id) {
-      const target = entries.find((item) => item.id === id);
-      if (!target) return;
-
-      els.editIdInput.value = target.id;
-      els.editBookInput.value = target.book || "";
-      els.editSongInput.value = target.song || "";
-      els.editComposerInput.value = target.composer || "";
-      els.editPageInput.value = target.page ?? "";
-      els.editToast.className = "toast";
-      els.editToast.textContent = "";
-
-      els.editModal.classList.add("open");
-      els.editModal.setAttribute("aria-hidden", "false");
-      els.editBookInput.focus();
-    }
-
-    function closeEditModal() {
-      els.editModal.classList.remove("open");
-      els.editModal.setAttribute("aria-hidden", "true");
-    }
-
-    els.closeEditModalBtn.addEventListener("click", closeEditModal);
-    els.cancelEditBtn.addEventListener("click", closeEditModal);
-    els.editModal.addEventListener("click", (e) => {
-      if (e.target === els.editModal) closeEditModal();
-    });
-
-    els.editForm.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const id = els.editIdInput.value;
-      const book = els.editBookInput.value.trim();
-      const song = els.editSongInput.value.trim();
-      const composer = els.editComposerInput.value.trim();
-      const pageRaw = els.editPageInput.value.trim();
-      const pageNum = Number(pageRaw);
-
-      if (!book) {
-        showToast(els.editToast, "楽譜の名前を入力してください。", "error");
-        els.editBookInput.focus();
-        return;
-      }
-      if (!song) {
-        showToast(els.editToast, "曲名を入力してください。", "error");
-        els.editSongInput.focus();
-        return;
-      }
-      if (!composer) {
-        showToast(els.editToast, "作曲者を入力してください。", "error");
-        els.editComposerInput.focus();
-        return;
-      }
-      if (!pageRaw || !Number.isInteger(pageNum) || pageNum <= 0) {
-        showToast(els.editToast, "ページは1以上の数字で入力してください。", "error");
-        els.editPageInput.focus();
-        return;
-      }
-
-      const idx = entries.findIndex((item) => item.id === id);
-      if (idx === -1) {
-        showToast(els.editToast, "対象のデータが見つかりませんでした。", "error");
-        return;
-      }
-
-      entries[idx] = {
-        ...entries[idx],
-        book,
-        song,
-        composer,
-        page: pageNum,
-        updatedAt: Date.now()
-      };
-
-      saveLocalEntries(entries);
-      renderBookSuggestions();
-      renderList();
-      if (els.searchSongInput.value.trim() || els.searchComposerInput.value.trim()) {
-        runSearch();
-      }
-      await pushEntriesToCloudIfLoggedIn();
-      closeEditModal();
-    });
-
-    // 一覧機能（曲名一覧・作曲者一覧・楽譜一覧 すべてアコーディオン展開＆各1件に修正/削除ボタン）
-    document.querySelectorAll(".subtab-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        currentSubtab = btn.dataset.subtab;
-        document.querySelectorAll(".subtab-btn").forEach((b) => {
-          b.classList.toggle("active", b.dataset.subtab === currentSubtab);
-        });
-        renderList();
-      });
-    });
-
-    async function deleteEntry(id) {
-      entries = entries.filter((item) => item.id !== id);
-      saveLocalEntries(entries);
-      renderBookSuggestions();
-      renderList();
-      if (els.searchSongInput.value.trim() || els.searchComposerInput.value.trim()) {
-        runSearch();
-      }
-      await pushEntriesToCloudIfLoggedIn();
-    }
-
-    function renderAccordionGroup(groups, typePrefix, badgeSuffix) {
-      if (groups.length === 0) {
-        return `<div class="empty-state">まだ登録がありません。「登録」タブから追加してください。</div>`;
-      }
-
-      return groups
-        .map((group) => {
-          const key = `${typePrefix}::${group.title}`;
-          const isOpen = expandedKeys.has(key);
-          const rowsHtml = group.items
-            .map(
-              (item) => `
-              <div class="detail-row">
-                <div class="detail-main">
-                  <strong>${escapeHtml(item.song)}</strong>
-                  <span class="detail-sub"> ／ 作曲者：${escapeHtml(item.composer)} ／ 楽譜：${escapeHtml(item.book)}（${escapeHtml(item.page)}ページ）</span>
-                </div>
-                <div class="row-actions">
-                  <button type="button" class="btn-edit-ghost" data-edit-id="${escapeHtml(item.id)}">修正</button>
-                  <button type="button" class="btn-danger-ghost" data-delete-id="${escapeHtml(item.id)}">削除</button>
-                </div>
-              </div>
-            `
-            )
-            .join("");
-
-          return `
-            <div class="accordion-item ${isOpen ? "open" : ""}" data-acc-key="${escapeHtml(key)}">
-              <button type="button" class="accordion-trigger">
-                <span>${escapeHtml(group.title)}</span>
-                <span class="accordion-meta">
-                  <span class="badge">${group.items.length}${badgeSuffix}</span>
-                  <span class="chev">▼</span>
-                </span>
-              </button>
-              <div class="accordion-panel">
-                ${rowsHtml}
-              </div>
-            </div>
-          `;
-        })
-        .join("");
-    }
-
-    function renderList() {
-      if (entries.length === 0) {
-        els.listContainer.innerHTML = `<div class="empty-state">まだ登録がありません。「登録」タブから楽譜と曲を登録しましょう。</div>`;
-        return;
-      }
-
-      if (currentSubtab === "songs") {
-        const map = new Map();
-        for (const item of entries) {
-          const key = item.song;
-          if (!map.has(key)) map.set(key, { title: item.song, items: [] });
-          map.get(key).items.push(item);
-        }
-        const groups = Array.from(map.values()).sort((a, b) =>
-          a.title.localeCompare(b.title, "ja")
-        );
-        els.listContainer.innerHTML = renderAccordionGroup(groups, "song", "件");
-      } else if (currentSubtab === "composers") {
-        const map = new Map();
-        for (const item of entries) {
-          const key = item.composer;
-          if (!map.has(key)) map.set(key, { title: item.composer, items: [] });
-          map.get(key).items.push(item);
-        }
-        const groups = Array.from(map.values()).sort((a, b) =>
-          a.title.localeCompare(b.title, "ja")
-        );
-        els.listContainer.innerHTML = renderAccordionGroup(groups, "composer", "曲");
-      } else if (currentSubtab === "books") {
-        const map = new Map();
-        for (const item of entries) {
-          const key = item.book;
-          if (!map.has(key)) map.set(key, { title: item.book, items: [] });
-          map.get(key).items.push(item);
-        }
-        const groups = Array.from(map.values()).sort((a, b) =>
-          a.title.localeCompare(b.title, "ja")
-        );
-        els.listContainer.innerHTML = renderAccordionGroup(groups, "book", "曲");
-      }
-    }
-
-    els.listContainer.addEventListener("click", (e) => {
-      const editBtn = e.target.closest("[data-edit-id]");
-      if (editBtn) {
-        e.stopPropagation();
-        openEditModal(editBtn.dataset.editId);
-        return;
-      }
-
-      const delBtn = e.target.closest("[data-delete-id]");
-      if (delBtn) {
-        e.stopPropagation();
-        const id = delBtn.dataset.deleteId;
-        deleteEntry(id);
-        return;
-      }
-
-      const trigger = e.target.closest(".accordion-trigger");
-      if (trigger) {
-        const itemEl = trigger.closest(".accordion-item");
-        const key = itemEl?.dataset.accKey;
-        if (!key) return;
-        if (expandedKeys.has(key)) {
-          expandedKeys.delete(key);
-          itemEl.classList.remove("open");
-        } else {
-          expandedKeys.add(key);
-          itemEl.classList.add("open");
-        }
-      }
-    });
-
-    function switchTab(tabName) {
-      currentTab = tabName;
-      document.querySelectorAll(".tab-view").forEach((sec) => {
-        sec.style.display = sec.id === `view-${tabName}` ? "" : "none";
-      });
-      document.querySelectorAll(".nav-btn").forEach((btn) => {
-        btn.classList.toggle("active", btn.dataset.tab === tabName);
-      });
-      if (tabName === "list") renderList();
-      if (tabName === "register") renderBookSuggestions();
-    }
-
-    document.querySelectorAll(".nav-btn").forEach((btn) => {
-      btn.addEventListener("click", () => switchTab(btn.dataset.tab));
-    });
-
-    function extractConfigSafe(rawText) {
-      const text = String(rawText || "");
-      const pick = (key) => {
-        const m = text.match(new RegExp(`${key}\\s*[:=]\\s*["']([^"']+)["']`));
-        return m ? m[1].replace(/\s+/g, "") : "";
-      };
-      return {
-        apiKey: pick("apiKey") || DEFAULT_FIREBASE_CONFIG.apiKey,
-        authDomain: pick("authDomain") || DEFAULT_FIREBASE_CONFIG.authDomain,
-        projectId: pick("projectId") || DEFAULT_FIREBASE_CONFIG.projectId,
-        storageBucket: pick("storageBucket") || DEFAULT_FIREBASE_CONFIG.storageBucket,
-        messagingSenderId: pick("messagingSenderId") || DEFAULT_FIREBASE_CONFIG.messagingSenderId,
-        appId: pick("appId") || DEFAULT_FIREBASE_CONFIG.appId,
-        measurementId: pick("measurementId") || DEFAULT_FIREBASE_CONFIG.measurementId
-      };
-    }
-
-    function getActiveFirebaseConfig() {
-      const rawConfig = localStorage.getItem(FB_CONFIG_KEY);
-      if (rawConfig) {
-        try {
-          const parsed = JSON.parse(rawConfig);
-          if (parsed && parsed.apiKey && parsed.projectId) {
-            return parsed;
-          }
-        } catch {
-          return extractConfigSafe(rawConfig);
-        }
-      }
-      return DEFAULT_FIREBASE_CONFIG;
-    }
-
-    function updateSyncHeaderUI() {
-      if (currentUser) {
-        els.syncDot.classList.add("connected");
-        els.syncBtnLabel.textContent = "同期中";
-        els.statusSub.textContent = `Google同期：${currentUser.email || currentUser.displayName || "接続済み"}`;
-        els.authStatusText.textContent = `ログイン中：${currentUser.email || currentUser.displayName || "Googleアカウント"}`;
-      } else {
-        els.syncDot.classList.remove("connected");
-        els.syncBtnLabel.textContent = "Google同期";
-        const hasConfig = Boolean(getActiveFirebaseConfig());
-        els.statusSub.textContent = hasConfig ? "Firebase設定済み（未ログイン）" : "ローカル保存モード";
-        els.authStatusText.textContent = hasConfig
-          ? "未ログイン（Googleでログインすると同期されます）"
-          : "未ログイン（ローカル保存中）";
-      }
-    }
-
-    function mergeEntries(localList, remoteList) {
-      const map = new Map();
-      for (const item of [...remoteList, ...localList]) {
-        if (!item || !item.id) continue;
-        const prev = map.get(item.id);
-        if (!prev || (item.updatedAt || 0) >= (prev.updatedAt || 0)) {
-          map.set(item.id, item);
-        }
-      }
-      return Array.from(map.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
-    }
-
-    async function pushEntriesToCloudIfLoggedIn() {
-      if (!currentUser || !fbDb || isApplyingRemote) return;
-      try {
-        const ref = doc(fbDb, "users", currentUser.uid, "pianoSheetMusic", "data");
-        await setDoc(ref, { entries, updatedAt: Date.now() }, { merge: true });
-      } catch (err) {
-        console.error("Cloud push error:", err);
-      }
-    }
-
-    function startCloudSync(user) {
-      if (unsubscribeSnapshot) {
-        unsubscribeSnapshot();
-        unsubscribeSnapshot = null;
-      }
-      if (!user || !fbDb) return;
-
-      const ref = doc(fbDb, "users", user.uid, "pianoSheetMusic", "data");
-
-      getDoc(ref)
-        .then(async (snap) => {
-          const remoteEntries = snap.exists() && Array.isArray(snap.data().entries) ? snap.data().entries : [];
-          const merged = mergeEntries(entries, remoteEntries);
-          isApplyingRemote = true;
-          entries = merged;
-          saveLocalEntries(entries);
-          isApplyingRemote = false;
-          renderBookSuggestions();
-          renderList();
-          await setDoc(ref, { entries, updatedAt: Date.now() }, { merge: true });
-        })
-        .catch((err) => console.error("Initial cloud fetch error:", err));
-
-      unsubscribeSnapshot = onSnapshot(ref, (snap) => {
-        if (!snap.exists()) return;
-        const remoteEntries = Array.isArray(snap.data().entries) ? snap.data().entries : [];
-        const merged = mergeEntries(entries, remoteEntries);
-        if (JSON.stringify(merged) !== JSON.stringify(entries)) {
-          isApplyingRemote = true;
-          entries = merged;
-          saveLocalEntries(entries);
-          isApplyingRemote = false;
-          renderBookSuggestions();
-          renderList();
-        }
-      });
-    }
-
-    function initFirebaseFromStorage() {
-      try {
-        const cfg = getActiveFirebaseConfig();
-        if (!cfg) {
-          updateSyncHeaderUI();
-          return;
-        }
-        fbApp = getApps().length ? getApps()[0] : initializeApp(cfg);
-        fbAuth = getAuth(fbApp);
-        fbDb = getFirestore(fbApp);
-
-        onAuthStateChanged(fbAuth, (user) => {
-          currentUser = user;
-          updateSyncHeaderUI();
-          if (user) {
-            startCloudSync(user);
-          } else if (unsubscribeSnapshot) {
-            unsubscribeSnapshot();
-            unsubscribeSnapshot = null;
-          }
-        });
-      } catch (err) {
-        console.error("Firebase init error:", err);
-        updateSyncHeaderUI();
-      }
-    }
-
-    els.openSyncModalBtn.addEventListener("click", () => {
-      els.firebaseConfigInput.value = JSON.stringify(getActiveFirebaseConfig(), null, 2);
-      updateSyncHeaderUI();
-      els.syncModal.classList.add("open");
-      els.syncModal.setAttribute("aria-hidden", "false");
-    });
-
-    els.closeSyncModalBtn.addEventListener("click", () => {
-      els.syncModal.classList.remove("open");
-      els.syncModal.setAttribute("aria-hidden", "true");
-    });
-
-    els.syncModal.addEventListener("click", (e) => {
-      if (e.target === els.syncModal) {
-        els.syncModal.classList.remove("open");
-        els.syncModal.setAttribute("aria-hidden", "true");
-      }
-    });
-
-    els.saveFirebaseConfigBtn.addEventListener("click", () => {
-      const cfg = extractConfigSafe(els.firebaseConfigInput.value);
-      localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(cfg, null, 2));
-      els.firebaseConfigInput.value = JSON.stringify(cfg, null, 2);
-      initFirebaseFromStorage();
-      showToast(els.syncToast, "Firebase設定を保存しました。「Googleでログイン」を押してください。");
-    });
-
-    els.clearFirebaseConfigBtn.addEventListener("click", () => {
-      localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(DEFAULT_FIREBASE_CONFIG, null, 2));
-      els.firebaseConfigInput.value = JSON.stringify(DEFAULT_FIREBASE_CONFIG, null, 2);
-      initFirebaseFromStorage();
-      showToast(els.syncToast, "組み込み設定にリセットしました。「Googleでログイン」を押してください。");
-    });
-
-    els.googleLoginBtn.addEventListener("click", async () => {
-      if (!fbAuth) {
-        initFirebaseFromStorage();
-      }
-      if (!fbAuth) {
-        showToast(els.syncToast, "先にFirebase設定を保存してください。", "error");
-        return;
-      }
-      const provider = new GoogleAuthProvider();
-      try {
-        await signInWithPopup(fbAuth, provider);
-        showToast(els.syncToast, "Googleログインに成功しました！");
-      } catch (err) {
-        if (err.code === "auth/popup-blocked" || err.code === "auth/operation-not-supported-in-this-environment") {
-          await signInWithRedirect(fbAuth, provider);
-        } else {
-          showToast(els.syncToast, `ログインエラー：${err.message}`, "error");
-        }
-      }
-    });
-
-    els.googleLogoutBtn.addEventListener("click", async () => {
-      if (!fbAuth) return;
-      try {
-        await signOut(fbAuth);
-        showToast(els.syncToast, "ログアウトしました。");
-      } catch (err) {
-        showToast(els.syncToast, `ログアウトエラー：${err.message}`, "error");
-      }
-    });
-
-    els.forceSyncBtn.addEventListener("click", async () => {
-      if (!currentUser) {
-        showToast(els.syncToast, "Googleログイン後に同期できます。", "error");
-        return;
-      }
-      await pushEntriesToCloudIfLoggedIn();
-      showToast(els.syncToast, "クラウドへ同期しました。");
-    });
-
-    renderBookSuggestions();
-    renderList();
-    initFirebaseFromStorage();
-  </script>
-</body>
-</html>
