@@ -159,26 +159,111 @@
       margin-bottom: 6px;
     }
 
-    .checkbox-row {
-      display: inline-flex;
+    .type-selector-group {
+      display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 9px;
-      padding: 10px 14px;
-      border: 1.5px solid var(--border);
-      border-radius: 11px;
-      background: var(--surface-alt);
-      cursor: pointer;
-      font-size: 14.5px;
-      font-weight: 700;
-      user-select: none;
+      gap: 8px;
     }
 
-    .checkbox-row input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-      accent-color: var(--primary);
+    .type-option-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 13px;
+      border: 1.5px solid var(--border);
+      border-radius: 999px;
+      background: var(--surface-alt);
+      color: var(--text);
+      font-size: 13.5px;
+      font-weight: 700;
       cursor: pointer;
-      margin: 0;
+      user-select: none;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+
+    .type-option-pill:hover {
+      border-color: var(--primary);
+      background: var(--primary-soft);
+      color: var(--primary);
+    }
+
+    .type-option-pill.active {
+      border-color: var(--primary);
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .type-add-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px;
+      border: 1.5px dashed var(--border);
+      border-radius: 999px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s;
+    }
+
+    .type-add-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--primary-soft);
+    }
+
+    .custom-type-add-box {
+      margin-top: 10px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: var(--surface-alt);
+      display: none;
+    }
+
+    .custom-type-add-box.open {
+      display: block;
+    }
+
+    .custom-type-add-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .custom-type-manage-list {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .custom-type-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .custom-type-del {
+      border: none;
+      background: transparent;
+      color: var(--danger);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 0 2px;
+      line-height: 1;
     }
 
     input[type="text"],
@@ -323,6 +408,7 @@
       border: 1px solid var(--border);
       padding: 9px 14px;
       font-size: 13px;
+      white-space: nowrap;
     }
 
     .btn-secondary:hover {
@@ -751,10 +837,15 @@
           </div>
 
           <div class="field">
-            <label class="checkbox-row" for="duetCheckbox">
-              <input type="checkbox" id="duetCheckbox" />
-              <span>連弾</span>
-            </label>
+            <label class="field-label">楽譜タイプ（標準はソロ）</label>
+            <div class="type-selector-group" id="registerTypeOptions"></div>
+            <div class="custom-type-add-box" id="customTypeAddBox">
+              <div class="custom-type-add-row">
+                <input type="text" id="newCustomTypeInput" lang="ja" placeholder="例：弾き語り、2台ピアノ、伴奏" autocomplete="off" />
+                <button type="button" class="btn btn-secondary" id="addCustomTypeConfirmBtn">追加</button>
+              </div>
+              <div class="custom-type-manage-list" id="customTypeManageList"></div>
+            </div>
           </div>
 
           <button type="submit" class="btn btn-primary">登録する</button>
@@ -769,12 +860,7 @@
         <h2 class="card-title">曲名・作曲者から検索</h2>
         <p class="card-sub">どちらか一方だけでも、両方組み合わせても検索できます。</p>
 
-        <div class="filter-bar" role="group" aria-label="検索の楽譜タイプ絞り込み">
-          <span class="filter-label">楽譜タイプ：</span>
-          <button type="button" class="filter-btn active" data-search-type="all">すべて (0)</button>
-          <button type="button" class="filter-btn" data-search-type="solo">ソロ (0)</button>
-          <button type="button" class="filter-btn" data-search-type="duet">連弾 (0)</button>
-        </div>
+        <div class="filter-bar" id="searchTypeFilterBar" role="group" aria-label="検索の楽譜タイプ絞り込み"></div>
 
         <div class="search-grid">
           <div class="field" style="margin-bottom:0;">
@@ -813,12 +899,7 @@
           <button type="button" class="subtab-btn" data-subtab="books">楽譜一覧</button>
         </div>
 
-        <div class="filter-bar" role="group" aria-label="一覧の楽譜タイプ絞り込み">
-          <span class="filter-label">楽譜タイプ：</span>
-          <button type="button" class="filter-btn active" data-list-type="all">すべて (0)</button>
-          <button type="button" class="filter-btn" data-list-type="solo">ソロ (0)</button>
-          <button type="button" class="filter-btn" data-list-type="duet">連弾 (0)</button>
-        </div>
+        <div class="filter-bar" id="listTypeFilterBar" role="group" aria-label="一覧の楽譜タイプ絞り込み"></div>
 
         <div id="listContainer"></div>
       </div>
@@ -875,10 +956,8 @@
         </div>
 
         <div class="field">
-          <label class="checkbox-row" for="editDuetCheckbox">
-            <input type="checkbox" id="editDuetCheckbox" />
-            <span>連弾</span>
-          </label>
+          <label class="field-label">楽譜タイプ</label>
+          <div class="type-selector-group" id="editTypeOptions"></div>
         </div>
 
         <div class="modal-actions">
@@ -944,7 +1023,14 @@
     } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
     const STORAGE_KEY = "piano_sheet_music_entries_v1";
+    const CUSTOM_TYPES_KEY = "piano_sheet_music_custom_types_v1";
     const FB_CONFIG_KEY = "piano_sheet_music_firebase_config_v1";
+
+    const BUILTIN_TYPES = [
+      { id: "solo", label: "ソロ" },
+      { id: "duet", label: "連弾" },
+      { id: "piano_vocal", label: "ピアノ＆ボーカル" }
+    ];
 
     const DEFAULT_FIREBASE_CONFIG = {
       apiKey: "AIzaSyD85gLypps0PijzIZz2K9OR6HOnj1WOWRQ",
@@ -957,6 +1043,10 @@
     };
 
     let entries = loadLocalEntries();
+    let customTypes = loadLocalCustomTypes();
+    let selectedRegisterType = "solo";
+    let selectedEditType = "solo";
+
     let currentTab = "register";
     let currentSubtab = "songs";
     let currentListTypeFilter = "all";
@@ -982,11 +1072,16 @@
       songInput: document.getElementById("songInput"),
       composerInput: document.getElementById("composerInput"),
       pageInput: document.getElementById("pageInput"),
-      duetCheckbox: document.getElementById("duetCheckbox"),
+      registerTypeOptions: document.getElementById("registerTypeOptions"),
+      customTypeAddBox: document.getElementById("customTypeAddBox"),
+      newCustomTypeInput: document.getElementById("newCustomTypeInput"),
+      addCustomTypeConfirmBtn: document.getElementById("addCustomTypeConfirmBtn"),
+      customTypeManageList: document.getElementById("customTypeManageList"),
       bookSuggestions: document.getElementById("bookSuggestions"),
       songSuggestions: document.getElementById("songSuggestions"),
       composerSuggestions: document.getElementById("composerSuggestions"),
       registerToast: document.getElementById("registerToast"),
+      searchTypeFilterBar: document.getElementById("searchTypeFilterBar"),
       searchSongInput: document.getElementById("searchSongInput"),
       searchComposerInput: document.getElementById("searchComposerInput"),
       searchBtn: document.getElementById("searchBtn"),
@@ -994,6 +1089,7 @@
       searchHint: document.getElementById("searchHint"),
       exactResults: document.getElementById("exactResults"),
       maybeResults: document.getElementById("maybeResults"),
+      listTypeFilterBar: document.getElementById("listTypeFilterBar"),
       listContainer: document.getElementById("listContainer"),
       editModal: document.getElementById("editModal"),
       closeEditModalBtn: document.getElementById("closeEditModalBtn"),
@@ -1004,7 +1100,7 @@
       editSongInput: document.getElementById("editSongInput"),
       editComposerInput: document.getElementById("editComposerInput"),
       editPageInput: document.getElementById("editPageInput"),
-      editDuetCheckbox: document.getElementById("editDuetCheckbox"),
+      editTypeOptions: document.getElementById("editTypeOptions"),
       editToast: document.getElementById("editToast"),
       openSyncModalBtn: document.getElementById("openSyncModalBtn"),
       closeSyncModalBtn: document.getElementById("closeSyncModalBtn"),
@@ -1040,12 +1136,59 @@
       }
     }
 
+    function loadLocalCustomTypes() {
+      try {
+        const raw = localStorage.getItem(CUSTOM_TYPES_KEY);
+        const parsed = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+          .map((item) => String(item || "").trim())
+          .filter(Boolean);
+      } catch {
+        return [];
+      }
+    }
+
+    function saveLocalCustomTypes(list) {
+      try {
+        localStorage.setItem(CUSTOM_TYPES_KEY, JSON.stringify(list));
+      } catch (err) {
+        console.error("Custom types save error:", err);
+      }
+    }
+
+    function getAllTypeDefinitions() {
+      const seenLabels = new Set(BUILTIN_TYPES.map((t) => normalizeForSearch(t.label)));
+      const result = [...BUILTIN_TYPES];
+      for (const label of customTypes) {
+        const trimmed = String(label || "").trim();
+        if (!trimmed) continue;
+        const norm = normalizeForSearch(trimmed);
+        if (seenLabels.has(norm)) continue;
+        seenLabels.add(norm);
+        result.push({ id: trimmed, label: trimmed });
+      }
+      return result;
+    }
+
     function getEntryType(item) {
-      return item?.type === "duet" ? "duet" : "solo";
+      const raw = String(item?.type || "").trim();
+      if (!raw) return "solo";
+      if (raw === "solo" || raw === "duet" || raw === "piano_vocal") return raw;
+      // 既存の登録データで使われているカスタムタイプもそのまま保持
+      return raw;
     }
 
     function getEntryTypeLabel(item) {
-      return getEntryType(item) === "duet" ? "連弾" : "ソロ";
+      const typeId = getEntryType(item);
+      const found = getAllTypeDefinitions().find((t) => t.id === typeId);
+      if (found) return found.label;
+      return typeId === "solo" ? "ソロ" : typeId;
+    }
+
+    function getTypeLabelById(typeId) {
+      const found = getAllTypeDefinitions().find((t) => t.id === typeId);
+      return found ? found.label : typeId === "solo" ? "ソロ" : typeId;
     }
 
     function matchesTypeFilter(item, filterType) {
@@ -1053,48 +1196,185 @@
       return getEntryType(item) === filterType;
     }
 
-    function countByType(list) {
-      let solo = 0;
-      let duet = 0;
-      for (const item of list) {
-        if (getEntryType(item) === "duet") {
-          duet += 1;
-        } else {
-          solo += 1;
-        }
+    function countByAllTypes(list) {
+      const defs = getAllTypeDefinitions();
+      const counts = { all: list.length };
+      for (const def of defs) {
+        counts[def.id] = 0;
       }
-      return {
-        all: solo + duet,
-        solo,
-        duet
-      };
+      for (const item of list) {
+        const t = getEntryType(item);
+        counts[t] = (counts[t] || 0) + 1;
+      }
+      return counts;
     }
 
-    function updateFilterCountLabels(selector, counts) {
-      document.querySelectorAll(selector).forEach((btn) => {
-        const key = btn.dataset.listType || btn.dataset.searchType;
-        if (key === "all") {
-          btn.textContent = `すべて (${counts.all})`;
-        } else if (key === "solo") {
-          btn.textContent = `ソロ (${counts.solo})`;
-        } else if (key === "duet") {
-          btn.textContent = `連弾 (${counts.duet})`;
-        }
-      });
+    function renderFilterBar(containerEl, dataAttrName, activeFilter, counts) {
+      if (!containerEl) return;
+      const defs = getAllTypeDefinitions();
+      const allActive = activeFilter === "all" ? "active" : "";
+      const buttons = [
+        `<button type="button" class="filter-btn ${allActive}" ${dataAttrName}="all">すべて (${counts.all ?? 0})</button>`
+      ];
+      for (const def of defs) {
+        const isActive = activeFilter === def.id ? "active" : "";
+        const c = counts[def.id] ?? 0;
+        buttons.push(
+          `<button type="button" class="filter-btn ${isActive}" ${dataAttrName}="${escapeHtml(def.id)}">${escapeHtml(def.label)} (${c})</button>`
+        );
+      }
+      containerEl.innerHTML = `<span class="filter-label">楽譜タイプ：</span>${buttons.join("")}`;
     }
 
-    function refreshAllFilterCounts() {
-      updateFilterCountLabels("[data-list-type]", countByType(entries));
+    function refreshAllFilterBars() {
+      const allCounts = countByAllTypes(entries);
+      if (!allCounts[currentListTypeFilter] && currentListTypeFilter !== "all") {
+        const exists = getAllTypeDefinitions().some((d) => d.id === currentListTypeFilter);
+        if (!exists) currentListTypeFilter = "all";
+      }
+      renderFilterBar(els.listTypeFilterBar, "data-list-type", currentListTypeFilter, allCounts);
 
+      if (!allCounts[currentSearchTypeFilter] && currentSearchTypeFilter !== "all") {
+        const exists = getAllTypeDefinitions().some((d) => d.id === currentSearchTypeFilter);
+        if (!exists) currentSearchTypeFilter = "all";
+      }
       const qSong = els.searchSongInput.value.trim();
       const qComposer = els.searchComposerInput.value.trim();
       if (!qSong && !qComposer) {
-        updateFilterCountLabels("[data-search-type]", countByType(entries));
+        renderFilterBar(els.searchTypeFilterBar, "data-search-type", currentSearchTypeFilter, allCounts);
       } else {
         const { exactMatches } = evaluateSearch(qSong, qComposer);
-        updateFilterCountLabels("[data-search-type]", countByType(exactMatches));
+        renderFilterBar(
+          els.searchTypeFilterBar,
+          "data-search-type",
+          currentSearchTypeFilter,
+          countByAllTypes(exactMatches)
+        );
       }
     }
+
+    function renderRegisterTypeOptions() {
+      const defs = getAllTypeDefinitions();
+      if (!defs.some((d) => d.id === selectedRegisterType)) {
+        selectedRegisterType = "solo";
+      }
+      const pillsHtml = defs
+        .map((def) => {
+          const active = def.id === selectedRegisterType ? "active" : "";
+          const checkMark = def.id === selectedRegisterType ? "✓ " : "";
+          return `<button type="button" class="type-option-pill ${active}" data-reg-type="${escapeHtml(def.id)}">${checkMark}${escapeHtml(def.label)}</button>`;
+        })
+        .join("");
+
+      const isOpen = els.customTypeAddBox.classList.contains("open");
+      els.registerTypeOptions.innerHTML = `
+        ${pillsHtml}
+        <button type="button" class="type-add-btn" id="toggleCustomTypeBoxBtn">${isOpen ? "閉じる" : "＋ タイプを追加"}</button>
+      `;
+
+      if (customTypes.length === 0) {
+        els.customTypeManageList.innerHTML = "";
+      } else {
+        els.customTypeManageList.innerHTML = customTypes
+          .map(
+            (label) => `
+            <span class="custom-type-tag">
+              <span>${escapeHtml(label)}</span>
+              <button type="button" class="custom-type-del" data-del-custom-type="${escapeHtml(label)}" title="このタイプを削除">×</button>
+            </span>
+          `
+          )
+          .join("");
+      }
+    }
+
+    function renderEditTypeOptions() {
+      const defs = getAllTypeDefinitions();
+      if (!defs.some((d) => d.id === selectedEditType)) {
+        defs.push({ id: selectedEditType, label: selectedEditType });
+      }
+      els.editTypeOptions.innerHTML = defs
+        .map((def) => {
+          const active = def.id === selectedEditType ? "active" : "";
+          const checkMark = def.id === selectedEditType ? "✓ " : "";
+          return `<button type="button" class="type-option-pill ${active}" data-edit-type="${escapeHtml(def.id)}">${checkMark}${escapeHtml(def.label)}</button>`;
+        })
+        .join("");
+    }
+
+    els.registerTypeOptions.addEventListener("click", (e) => {
+      const toggleBtn = e.target.closest("#toggleCustomTypeBoxBtn");
+      if (toggleBtn) {
+        els.customTypeAddBox.classList.toggle("open");
+        renderRegisterTypeOptions();
+        if (els.customTypeAddBox.classList.contains("open")) {
+          els.newCustomTypeInput.focus();
+        }
+        return;
+      }
+
+      const pill = e.target.closest("[data-reg-type]");
+      if (!pill) return;
+      selectedRegisterType = pill.dataset.regType || "solo";
+      renderRegisterTypeOptions();
+    });
+
+    async function handleAddCustomType() {
+      const raw = els.newCustomTypeInput.value.trim();
+      if (!raw) {
+        showToast(els.registerToast, "追加する楽譜タイプ名を入力してください。", "error");
+        els.newCustomTypeInput.focus();
+        return;
+      }
+      const normNew = normalizeForSearch(raw);
+      const exists = getAllTypeDefinitions().some(
+        (d) => normalizeForSearch(d.label) === normNew
+      );
+      if (exists) {
+        showToast(els.registerToast, `「${raw}」はすでに登録されています。`, "error");
+        return;
+      }
+
+      customTypes = [...customTypes, raw];
+      saveLocalCustomTypes(customTypes);
+      selectedRegisterType = raw;
+      els.newCustomTypeInput.value = "";
+      renderRegisterTypeOptions();
+      refreshAllFilterBars();
+      showToast(els.registerToast, `楽譜タイプ「${raw}」を追加しました！`);
+      await pushEntriesToCloudIfLoggedIn();
+    }
+
+    els.addCustomTypeConfirmBtn.addEventListener("click", handleAddCustomType);
+    els.newCustomTypeInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        handleAddCustomType();
+      }
+    });
+
+    els.customTypeManageList.addEventListener("click", async (e) => {
+      const delBtn = e.target.closest("[data-del-custom-type]");
+      if (!delBtn) return;
+      const targetLabel = delBtn.dataset.delCustomType;
+      customTypes = customTypes.filter((t) => t !== targetLabel);
+      saveLocalCustomTypes(customTypes);
+      if (selectedRegisterType === targetLabel) {
+        selectedRegisterType = "solo";
+      }
+      renderRegisterTypeOptions();
+      refreshAllFilterBars();
+      renderList();
+      showToast(els.registerToast, `楽譜タイプ「${targetLabel}」を削除しました。`);
+      await pushEntriesToCloudIfLoggedIn();
+    });
+
+    els.editTypeOptions.addEventListener("click", (e) => {
+      const pill = e.target.closest("[data-edit-type]");
+      if (!pill) return;
+      selectedEditType = pill.dataset.editType || "solo";
+      renderEditTypeOptions();
+    });
 
     function showToast(el, message, type = "success") {
       if (!el) return;
@@ -1472,7 +1752,7 @@
       const song = els.songInput.value.trim();
       const composer = els.composerInput.value.trim();
       const pageNum = parsePageNumber(els.pageInput.value);
-      const entryType = els.duetCheckbox.checked ? "duet" : "solo";
+      const entryType = selectedRegisterType || "solo";
 
       if (!book) {
         showToast(els.registerToast, "楽譜の名前を入力してください。", "error");
@@ -1511,14 +1791,15 @@
       clearSongSuggestions();
       clearComposerSuggestions();
       renderList();
-      refreshAllFilterCounts();
+      refreshAllFilterBars();
 
+      // 選択中の楽譜タイプは連続登録しやすいようそのまま維持
       els.songInput.value = "";
       els.composerInput.value = "";
       els.pageInput.value = "";
       els.songInput.focus();
 
-      showToast(els.registerToast, `「${song}」（${entryType === "duet" ? "連弾" : "ソロ"}）を登録しました！`);
+      showToast(els.registerToast, `「${song}」（${getTypeLabelById(entryType)}）を登録しました！`);
       await pushEntriesToCloudIfLoggedIn();
     });
 
@@ -1575,14 +1856,15 @@
       const qSong = els.searchSongInput.value.trim();
       const qComposer = els.searchComposerInput.value.trim();
       const typeLabel =
-        currentSearchTypeFilter === "solo"
-          ? "ソロ"
-          : currentSearchTypeFilter === "duet"
-            ? "連弾"
-            : "";
+        currentSearchTypeFilter !== "all" ? getTypeLabelById(currentSearchTypeFilter) : "";
 
       if (!qSong && !qComposer) {
-        updateFilterCountLabels("[data-search-type]", countByType(entries));
+        renderFilterBar(
+          els.searchTypeFilterBar,
+          "data-search-type",
+          currentSearchTypeFilter,
+          countByAllTypes(entries)
+        );
         els.searchHint.textContent = typeLabel
           ? `楽譜タイプ「${typeLabel}」で絞り込み中。曲名または作曲者を入力して「検索する」を押してください。`
           : "曲名または作曲者を入力して「検索する」を押してください。";
@@ -1592,7 +1874,12 @@
       }
 
       const { exactMatches, maybeMatches } = evaluateSearch(qSong, qComposer);
-      updateFilterCountLabels("[data-search-type]", countByType(exactMatches));
+      renderFilterBar(
+        els.searchTypeFilterBar,
+        "data-search-type",
+        currentSearchTypeFilter,
+        countByAllTypes(exactMatches)
+      );
 
       const filteredExact = exactMatches.filter((item) =>
         matchesTypeFilter(item, currentSearchTypeFilter)
@@ -1647,25 +1934,22 @@
       }
     }
 
-    document.querySelectorAll("[data-search-type]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        currentSearchTypeFilter = btn.dataset.searchType;
-        document.querySelectorAll("[data-search-type]").forEach((b) => {
-          b.classList.toggle("active", b.dataset.searchType === currentSearchTypeFilter);
-        });
-        runSearch();
-      });
+    els.searchTypeFilterBar.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-search-type]");
+      if (!btn) return;
+      currentSearchTypeFilter = btn.dataset.searchType || "all";
+      runSearch();
     });
 
     els.searchBtn.addEventListener("click", runSearch);
     els.searchSongInput.addEventListener("input", () => {
       if (!els.searchSongInput.value.trim() && !els.searchComposerInput.value.trim()) {
-        updateFilterCountLabels("[data-search-type]", countByType(entries));
+        refreshAllFilterBars();
       }
     });
     els.searchComposerInput.addEventListener("input", () => {
       if (!els.searchSongInput.value.trim() && !els.searchComposerInput.value.trim()) {
-        updateFilterCountLabels("[data-search-type]", countByType(entries));
+        refreshAllFilterBars();
       }
     });
     els.searchSongInput.addEventListener("keydown", (e) => {
@@ -1678,10 +1962,7 @@
       els.searchSongInput.value = "";
       els.searchComposerInput.value = "";
       currentSearchTypeFilter = "all";
-      document.querySelectorAll("[data-search-type]").forEach((b) => {
-        b.classList.toggle("active", b.dataset.searchType === "all");
-      });
-      updateFilterCountLabels("[data-search-type]", countByType(entries));
+      refreshAllFilterBars();
       els.searchHint.textContent = "曲名または作曲者を入力して「検索する」を押してください。";
       els.exactResults.innerHTML = "";
       els.maybeResults.innerHTML = "";
@@ -1696,7 +1977,8 @@
       els.editSongInput.value = target.song || "";
       els.editComposerInput.value = target.composer || "";
       els.editPageInput.value = target.page ?? "";
-      els.editDuetCheckbox.checked = getEntryType(target) === "duet";
+      selectedEditType = getEntryType(target);
+      renderEditTypeOptions();
       els.editToast.className = "toast";
       els.editToast.textContent = "";
 
@@ -1722,7 +2004,7 @@
       const song = els.editSongInput.value.trim();
       const composer = els.editComposerInput.value.trim();
       const pageNum = parsePageNumber(els.editPageInput.value);
-      const entryType = els.editDuetCheckbox.checked ? "duet" : "solo";
+      const entryType = selectedEditType || "solo";
 
       if (!book) {
         showToast(els.editToast, "楽譜の名前を入力してください。", "error");
@@ -1764,7 +2046,7 @@
       saveLocalEntries(entries);
       renderBookSuggestions();
       renderList();
-      refreshAllFilterCounts();
+      refreshAllFilterBars();
       if (els.searchSongInput.value.trim() || els.searchComposerInput.value.trim()) {
         runSearch();
       }
@@ -1782,14 +2064,11 @@
       });
     });
 
-    document.querySelectorAll("[data-list-type]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        currentListTypeFilter = btn.dataset.listType;
-        document.querySelectorAll("[data-list-type]").forEach((b) => {
-          b.classList.toggle("active", b.dataset.listType === currentListTypeFilter);
-        });
-        renderList();
-      });
+    els.listTypeFilterBar.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-list-type]");
+      if (!btn) return;
+      currentListTypeFilter = btn.dataset.listType || "all";
+      renderList();
     });
 
     async function deleteEntry(id) {
@@ -1797,7 +2076,7 @@
       saveLocalEntries(entries);
       renderBookSuggestions();
       renderList();
-      refreshAllFilterCounts();
+      refreshAllFilterBars();
       if (els.searchSongInput.value.trim() || els.searchComposerInput.value.trim()) {
         runSearch();
       }
@@ -1834,7 +2113,7 @@
         const msg =
           currentListTypeFilter === "all"
             ? "まだ登録がありません。「登録」タブから追加してください。"
-            : `該当する${currentListTypeFilter === "duet" ? "連弾" : "ソロ"}のデータはありません。`;
+            : `該当する${getTypeLabelById(currentListTypeFilter)}のデータはありません。`;
         return `<div class="empty-state">${msg}</div>`;
       }
 
@@ -1879,7 +2158,12 @@
     }
 
     function renderList() {
-      updateFilterCountLabels("[data-list-type]", countByType(entries));
+      renderFilterBar(
+        els.listTypeFilterBar,
+        "data-list-type",
+        currentListTypeFilter,
+        countByAllTypes(entries)
+      );
 
       const filteredEntries = entries.filter((item) =>
         matchesTypeFilter(item, currentListTypeFilter)
@@ -1889,7 +2173,7 @@
         const msg =
           entries.length === 0
             ? "まだ登録がありません。「登録」タブから楽譜と曲を登録しましょう。"
-            : `該当する${currentListTypeFilter === "duet" ? "連弾" : "ソロ"}のデータはありません。`;
+            : `該当する${getTypeLabelById(currentListTypeFilter)}のデータはありません。`;
         els.listContainer.innerHTML = `<div class="empty-state">${msg}</div>`;
         return;
       }
@@ -1963,9 +2247,12 @@
       document.querySelectorAll(".nav-btn").forEach((btn) => {
         btn.classList.toggle("active", btn.dataset.tab === tabName);
       });
-      refreshAllFilterCounts();
+      refreshAllFilterBars();
       if (tabName === "list") renderList();
-      if (tabName === "register") renderBookSuggestions();
+      if (tabName === "register") {
+        renderBookSuggestions();
+        renderRegisterTypeOptions();
+      }
     }
 
     document.querySelectorAll(".nav-btn").forEach((btn) => {
@@ -2033,11 +2320,25 @@
       return Array.from(map.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
     }
 
+    function mergeCustomTypes(localTypes, remoteTypes) {
+      const seen = new Set(BUILTIN_TYPES.map((t) => normalizeForSearch(t.label)));
+      const merged = [];
+      for (const label of [...(remoteTypes || []), ...(localTypes || [])]) {
+        const trimmed = String(label || "").trim();
+        if (!trimmed) continue;
+        const norm = normalizeForSearch(trimmed);
+        if (seen.has(norm)) continue;
+        seen.add(norm);
+        merged.push(trimmed);
+      }
+      return merged;
+    }
+
     async function pushEntriesToCloudIfLoggedIn() {
       if (!currentUser || !fbDb || isApplyingRemote) return;
       try {
         const ref = doc(fbDb, "users", currentUser.uid, "pianoSheetMusic", "data");
-        await setDoc(ref, { entries, updatedAt: Date.now() }, { merge: true });
+        await setDoc(ref, { entries, customTypes, updatedAt: Date.now() }, { merge: true });
       } catch (err) {
         console.error("Cloud push error:", err);
       }
@@ -2054,31 +2355,50 @@
 
       getDoc(ref)
         .then(async (snap) => {
-          const remoteEntries = snap.exists() && Array.isArray(snap.data().entries) ? snap.data().entries : [];
+          const data = snap.exists() ? snap.data() : {};
+          const remoteEntries = Array.isArray(data.entries) ? data.entries : [];
+          const remoteTypes = Array.isArray(data.customTypes) ? data.customTypes : [];
           const merged = mergeEntries(entries, remoteEntries);
+          const mergedTypes = mergeCustomTypes(customTypes, remoteTypes);
+
           isApplyingRemote = true;
           entries = merged;
+          customTypes = mergedTypes;
           saveLocalEntries(entries);
+          saveLocalCustomTypes(customTypes);
           isApplyingRemote = false;
+
+          renderRegisterTypeOptions();
           renderBookSuggestions();
           renderList();
-          refreshAllFilterCounts();
-          await setDoc(ref, { entries, updatedAt: Date.now() }, { merge: true });
+          refreshAllFilterBars();
+          await setDoc(ref, { entries, customTypes, updatedAt: Date.now() }, { merge: true });
         })
         .catch((err) => console.error("Initial cloud fetch error:", err));
 
       unsubscribeSnapshot = onSnapshot(ref, (snap) => {
         if (!snap.exists()) return;
-        const remoteEntries = Array.isArray(snap.data().entries) ? snap.data().entries : [];
+        const data = snap.data();
+        const remoteEntries = Array.isArray(data.entries) ? data.entries : [];
+        const remoteTypes = Array.isArray(data.customTypes) ? data.customTypes : [];
         const merged = mergeEntries(entries, remoteEntries);
-        if (JSON.stringify(merged) !== JSON.stringify(entries)) {
+        const mergedTypes = mergeCustomTypes(customTypes, remoteTypes);
+
+        const entriesChanged = JSON.stringify(merged) !== JSON.stringify(entries);
+        const typesChanged = JSON.stringify(mergedTypes) !== JSON.stringify(customTypes);
+
+        if (entriesChanged || typesChanged) {
           isApplyingRemote = true;
           entries = merged;
+          customTypes = mergedTypes;
           saveLocalEntries(entries);
+          saveLocalCustomTypes(customTypes);
           isApplyingRemote = false;
+
+          renderRegisterTypeOptions();
           renderBookSuggestions();
           renderList();
-          refreshAllFilterCounts();
+          refreshAllFilterBars();
         }
       });
     }
@@ -2184,9 +2504,10 @@
       showToast(els.syncToast, "クラウドへ同期しました。");
     });
 
+    renderRegisterTypeOptions();
     renderBookSuggestions();
     renderList();
-    refreshAllFilterCounts();
+    refreshAllFilterBars();
     initFirebaseFromStorage();
   </script>
 </body>
