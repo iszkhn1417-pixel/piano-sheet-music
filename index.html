@@ -964,6 +964,22 @@
       return hiraToKata(normalized);
     }
 
+    function compareJa(a, b) {
+      return String(a ?? "").localeCompare(String(b ?? ""), "ja", {
+        sensitivity: "base",
+        numeric: true
+      });
+    }
+
+    function comparePage(a, b) {
+      const pa = Number(a?.page);
+      const pb = Number(b?.page);
+      const safeA = Number.isFinite(pa) ? pa : Number.MAX_SAFE_INTEGER;
+      const safeB = Number.isFinite(pb) ? pb : Number.MAX_SAFE_INTEGER;
+      if (safeA !== safeB) return safeA - safeB;
+      return compareJa(a?.song, b?.song);
+    }
+
     function levenshtein(a, b) {
       const m = a.length;
       const n = b.length;
@@ -1010,7 +1026,7 @@
           map.set(key, b);
         }
       }
-      return Array.from(map.values());
+      return Array.from(map.values()).sort(compareJa);
     }
 
     function getUniqueComposers() {
@@ -1023,7 +1039,7 @@
           map.set(key, c);
         }
       }
-      return Array.from(map.values());
+      return Array.from(map.values()).sort(compareJa);
     }
 
     function renderBookSuggestions() {
@@ -1435,6 +1451,34 @@
       await pushEntriesToCloudIfLoggedIn();
     }
 
+    function sortItemsForSubtab(items, subtab) {
+      const copied = [...items];
+      if (subtab === "songs") {
+        // 曲名一覧の展開後：楽譜名のあいうえお順 → 同じ楽譜ならページ順 → 曲名あいうえお順
+        return copied.sort((a, b) => {
+          const byBook = compareJa(a.book, b.book);
+          if (byBook !== 0) return byBook;
+          return comparePage(a, b);
+        });
+      }
+      if (subtab === "composers") {
+        // 作曲者一覧の展開後：曲名のあいうえお順 → 楽譜名あいうえお順 → ページ順
+        return copied.sort((a, b) => {
+          const bySong = compareJa(a.song, b.song);
+          if (bySong !== 0) return bySong;
+          const byBook = compareJa(a.book, b.book);
+          if (byBook !== 0) return byBook;
+          return comparePage(a, b);
+        });
+      }
+      // 楽譜一覧の展開後：ページ順（1〜）→ 同じページなら曲名あいうえお順
+      return copied.sort((a, b) => {
+        const byPage = comparePage(a, b);
+        if (byPage !== 0) return byPage;
+        return compareJa(a.song, b.song);
+      });
+    }
+
     function renderAccordionGroup(groups, typePrefix, badgeSuffix) {
       if (groups.length === 0) {
         return `<div class="empty-state">まだ登録がありません。「登録」タブから追加してください。</div>`;
@@ -1444,7 +1488,8 @@
         .map((group) => {
           const key = `${typePrefix}::${group.title}`;
           const isOpen = expandedKeys.has(key);
-          const rowsHtml = group.items
+          const sortedItems = sortItemsForSubtab(group.items, currentSubtab);
+          const rowsHtml = sortedItems
             .map(
               (item) => `
               <div class="detail-row">
@@ -1466,7 +1511,7 @@
               <button type="button" class="accordion-trigger">
                 <span>${escapeHtml(group.title)}</span>
                 <span class="accordion-meta">
-                  <span class="badge">${group.items.length}${badgeSuffix}</span>
+                  <span class="badge">${sortedItems.length}${badgeSuffix}</span>
                   <span class="chev">▼</span>
                 </span>
               </button>
@@ -1492,9 +1537,7 @@
           if (!map.has(key)) map.set(key, { title: item.song, items: [] });
           map.get(key).items.push(item);
         }
-        const groups = Array.from(map.values()).sort((a, b) =>
-          String(a.title || "").localeCompare(String(b.title || ""), "ja")
-        );
+        const groups = Array.from(map.values()).sort((a, b) => compareJa(a.title, b.title));
         els.listContainer.innerHTML = renderAccordionGroup(groups, "song", "件");
       } else if (currentSubtab === "composers") {
         const map = new Map();
@@ -1503,9 +1546,7 @@
           if (!map.has(key)) map.set(key, { title: item.composer, items: [] });
           map.get(key).items.push(item);
         }
-        const groups = Array.from(map.values()).sort((a, b) =>
-          String(a.title || "").localeCompare(String(b.title || ""), "ja")
-        );
+        const groups = Array.from(map.values()).sort((a, b) => compareJa(a.title, b.title));
         els.listContainer.innerHTML = renderAccordionGroup(groups, "composer", "曲");
       } else if (currentSubtab === "books") {
         const map = new Map();
@@ -1514,9 +1555,7 @@
           if (!map.has(key)) map.set(key, { title: item.book, items: [] });
           map.get(key).items.push(item);
         }
-        const groups = Array.from(map.values()).sort((a, b) =>
-          String(a.title || "").localeCompare(String(b.title || ""), "ja")
-        );
+        const groups = Array.from(map.values()).sort((a, b) => compareJa(a.title, b.title));
         els.listContainer.innerHTML = renderAccordionGroup(groups, "book", "曲");
       }
     }
